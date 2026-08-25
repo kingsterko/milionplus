@@ -1,0 +1,277 @@
+import { getDashboardData } from "@/lib/dashboard";
+import { recordTipAction, refreshAction } from "@/lib/actions";
+
+export const dynamic = "force-dynamic";
+
+export default async function MatchesPage() {
+  let data;
+  try {
+    data = await getDashboardData();
+  } catch (e) {
+    return (
+      <div className="card mt-6">
+        <p className="text-red font-medium">Chyba pri načítaní dát</p>
+        <p className="text-sm text-muted mt-1">{e instanceof Error ? e.message : String(e)}</p>
+      </div>
+    );
+  }
+
+  const { matches, bank, valueTips, confidenceEntries, totalsConfidenceEntries, modelWarnings, diagnostics } = data;
+
+  return (
+    <div className="space-y-8 mt-4">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted">
+          Nájdených {matches.length} zápasov · bank €{bank.toFixed(2)}
+        </p>
+        <form action={refreshAction}>
+          <button className="btn-primary" type="submit">
+            🔄 Obnoviť
+          </button>
+        </form>
+      </div>
+
+      {modelWarnings.length > 0 && (
+        <details className="card">
+          <summary className="cursor-pointer text-sm font-medium">
+            ⚠️ {modelWarnings.length} zápas(y) bez vlastného modelu (fallback)
+          </summary>
+          <ul className="mt-2 space-y-1">
+            {modelWarnings.map((w, i) => (
+              <li key={i} className="text-xs text-muted">
+                {w}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+
+      {/* ---------- Value tipy ---------- */}
+      <section>
+        <h2 className="text-xl font-display font-semibold">💡 Value tipy</h2>
+        <p className="text-xs text-muted mt-1 mb-3">
+          Hľadá kurzy, ktoré platia viac, než hovorí odhadovaná pravdepodobnosť.
+        </p>
+        {valueTips.length === 0 ? (
+          <p className="text-sm text-muted">
+            Momentálne žiadny zápas neprešiel prahom pre value tip — trh je efektívne ocenený.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {[...valueTips]
+              .sort((a, b) => b.edge - a.edge)
+              .map((t, i) => (
+                <div key={i} className="card">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium">{t.match}</p>
+                      <p className="text-xs text-muted">
+                        {t.outcome} @ {t.bookmaker} · kurz {t.odds.toFixed(2)}
+                      </p>
+                    </div>
+                    <span className="badge badge-green shrink-0">
+                      +{t.edge.toFixed(1)}% (prah {t.threshold.toFixed(1)}%)
+                    </span>
+                  </div>
+                  <p className="text-sm mt-2">
+                    Odporúčaná stávka: <span className="font-mono text-green">€{t.stake.toFixed(2)}</span>{" "}
+                    <span className="text-muted">({((t.stake / bank) * 100).toFixed(1)}% banku)</span>
+                  </p>
+                  <form action={recordTipAction} className="mt-2">
+                    <input type="hidden" name="match" value={t.match} />
+                    <input type="hidden" name="market" value="value" />
+                    <input type="hidden" name="outcome" value={t.outcome} />
+                    <input type="hidden" name="bookmaker" value={t.bookmaker} />
+                    <input type="hidden" name="odds" value={t.odds} />
+                    <input type="hidden" name="edge" value={t.edge} />
+                    <input type="hidden" name="stake" value={t.stake} />
+                    <button className="btn" type="submit">
+                      📝 Zaznamenať
+                    </button>
+                  </form>
+                </div>
+              ))}
+          </div>
+        )}
+
+        <details className="card mt-3">
+          <summary className="cursor-pointer text-sm font-medium">
+            🔍 Diagnostika — čísla za každým výsledkom
+          </summary>
+          <p className="text-xs text-muted mt-2 mb-2">
+            Ak sú edge a prah blízko seba, bookmakeri sú si medzi sebou blízki (bežné pri PL).
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs font-mono">
+              <thead>
+                <tr className="text-muted text-left">
+                  <th className="pr-3 py-1">zápas</th>
+                  <th className="pr-3">trh</th>
+                  <th className="pr-3">výsledok</th>
+                  <th className="pr-3">kurz</th>
+                  <th className="pr-3">trh %</th>
+                  <th className="pr-3">model %</th>
+                  <th className="pr-3">edge</th>
+                  <th className="pr-3">prah</th>
+                  <th>✓</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...diagnostics]
+                  .sort((a, b) => b.edge - b.prah - (a.edge - a.prah))
+                  .map((d, i) => (
+                    <tr key={i} className="border-t border-border">
+                      <td className="pr-3 py-1">{d.match}</td>
+                      <td className="pr-3">{d.trh}</td>
+                      <td className="pr-3">{d.vysledok}</td>
+                      <td className="pr-3">{d.kurz.toFixed(2)}</td>
+                      <td className="pr-3">{d.trhPct.toFixed(1)}</td>
+                      <td className="pr-3">{d.modelPct.toFixed(1)}</td>
+                      <td className="pr-3">{d.edge.toFixed(1)}</td>
+                      <td className="pr-3">{d.prah.toFixed(1)}</td>
+                      <td>{d.presiel ? "✅" : "—"}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      </section>
+
+      {/* ---------- Iste tipy ---------- */}
+      <section>
+        <h2 className="text-xl font-display font-semibold">🎯 Isté tipy</h2>
+        <p className="text-xs text-muted mt-1 mb-3">
+          Hľadá výsledky s najvyššou šancou na trafenie, aj keď kurz je menší.
+        </p>
+        {confidenceEntries.length === 0 && totalsConfidenceEntries.length === 0 ? (
+          <p className="text-sm text-muted">Žiadny zápas zatiaľ nemá dostatočne istého favorita.</p>
+        ) : (
+          <div className="space-y-3">
+            {confidenceEntries.map((entry, i) => (
+              <div key={i} className="card">
+                <p className="font-medium mb-2">{entry.match}</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide text-muted mb-1">Favorit</p>
+                    {entry.confidence ? (
+                      <>
+                        <p className="text-sm">
+                          <span className="font-medium">{entry.confidence.outcome}</span> @{" "}
+                          {entry.confidence.odds.toFixed(2)} ({entry.confidence.bookmaker})
+                        </p>
+                        <p className="text-xs text-muted">
+                          Šanca: {entry.confidence.modelProb.toFixed(0)}% · edge{" "}
+                          {entry.confidence.edge >= 0 ? "+" : ""}
+                          {entry.confidence.edge.toFixed(1)}%
+                        </p>
+                        <form action={recordTipAction} className="mt-2">
+                          <input type="hidden" name="match" value={entry.match} />
+                          <input type="hidden" name="market" value="istota" />
+                          <input type="hidden" name="outcome" value={entry.confidence.outcome} />
+                          <input type="hidden" name="bookmaker" value={entry.confidence.bookmaker} />
+                          <input type="hidden" name="odds" value={entry.confidence.odds} />
+                          <input type="hidden" name="edge" value={entry.confidence.edge} />
+                          <input type="hidden" name="stake" value={Math.max(Math.round(bank * 0.02 * 100) / 100, 0.5)} />
+                          <button className="btn" type="submit">
+                            📝 Zaznamenať
+                          </button>
+                        </form>
+                      </>
+                    ) : (
+                      <p className="text-xs text-muted">Nedosahuje minimálnu istotu.</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide text-muted mb-1">Dvojšanca</p>
+                    {entry.doubleChance ? (
+                      <>
+                        <p className="text-sm">
+                          <span className="font-medium">{entry.doubleChance.label}</span> —{" "}
+                          {entry.doubleChance.description}
+                        </p>
+                        <p className="text-xs text-muted">
+                          Šanca: {entry.doubleChance.modelProb.toFixed(0)}% · odh. kurz ~
+                          {entry.doubleChance.estimatedOdds.toFixed(2)}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-xs text-muted">Nepodarilo sa odhadnúť.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {totalsConfidenceEntries.length > 0 && (
+              <div>
+                <p className="text-sm font-medium mt-4 mb-2">⚽ Nad/Pod 2.5 gólu</p>
+                {totalsConfidenceEntries.map((entry, i) => (
+                  <div key={i} className="card mb-2">
+                    <p className="text-sm">
+                      <span className="font-medium">{entry.match}</span>: {entry.confidence.outcome} @{" "}
+                      {entry.confidence.odds.toFixed(2)} ({entry.confidence.bookmaker})
+                    </p>
+                    <p className="text-xs text-muted">
+                      Šanca: {entry.confidence.modelProb.toFixed(0)}% · edge{" "}
+                      {entry.confidence.edge >= 0 ? "+" : ""}
+                      {entry.confidence.edge.toFixed(1)}%
+                    </p>
+                    <form action={recordTipAction} className="mt-2">
+                      <input type="hidden" name="match" value={entry.match} />
+                      <input type="hidden" name="market" value="istota" />
+                      <input type="hidden" name="outcome" value={entry.confidence.outcome} />
+                      <input type="hidden" name="bookmaker" value={entry.confidence.bookmaker} />
+                      <input type="hidden" name="odds" value={entry.confidence.odds} />
+                      <input type="hidden" name="edge" value={entry.confidence.edge} />
+                      <input type="hidden" name="stake" value={Math.max(Math.round(bank * 0.02 * 100) / 100, 0.5)} />
+                      <button className="btn" type="submit">
+                        📝 Zaznamenať
+                      </button>
+                    </form>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* ---------- Vsetky zapasy ---------- */}
+      <section>
+        <h2 className="text-xl font-display font-semibold mb-3">📋 Všetky zápasy a kurzy</h2>
+        <div className="space-y-2">
+          {matches.map((m, i) => (
+            <details key={i} className="card">
+              <summary className="cursor-pointer text-sm font-medium">
+                {m.home} vs {m.away} — {m.commenceTime.slice(0, 16).replace("T", " ")}
+              </summary>
+              <div className="mt-2 space-y-2 text-xs">
+                {m.odds.length > 0 && (
+                  <div>
+                    <p className="text-muted mb-1">1X2:</p>
+                    {m.bookmakers.map((bm, j) => (
+                      <p key={j} className="font-mono">
+                        {bm}: 1={m.odds[j].h.toFixed(2)} X={m.odds[j].d.toFixed(2)} 2={m.odds[j].a.toFixed(2)}
+                      </p>
+                    ))}
+                  </div>
+                )}
+                {m.totalsOdds.length > 0 && (
+                  <div>
+                    <p className="text-muted mb-1">Nad/Pod 2.5:</p>
+                    {m.totalsBookmakers.map((bm, j) => (
+                      <p key={j} className="font-mono">
+                        {bm}: Nad={m.totalsOdds[j].over.toFixed(2)} Pod={m.totalsOdds[j].under.toFixed(2)}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </details>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}

@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url("https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600&display=swap");
+
+body {
+  background-color: #0b0d0c;
+  color: #e8e6dd;
+}
+
+.card {
+  @apply bg-surface border border-border rounded-md p-4;
+}
+
+.btn {
+  @apply font-mono text-xs uppercase tracking-wide rounded border px-3 py-1.5 transition-colors;
+  border-color: #3dff7a66;
+  color: #3dff7a;
+}
+.btn:hover {
+  background: #3dff7a11;
+  border-color: #3dff7a;
+}
+
+.btn-primary {
+  @apply font-mono text-xs uppercase tracking-wide rounded px-3 py-1.5 font-semibold;
+  background: #3dff7a;
+  color: #0b0d0c;
+}
+.btn-primary:hover {
+  opacity: 0.9;
+}
+
+.badge {
+  @apply font-mono text-[10px] uppercase tracking-wide px-2 py-0.5 rounded inline-block;
+}
+.badge-green {
+  background: #3dff7a22;
+  color: #3dff7a;
+  border: 1px solid #3dff7a55;
+}
+.badge-muted {
+  background: transparent;
+  color: #8a9088;
+  border: 1px solid #262b28;
+}

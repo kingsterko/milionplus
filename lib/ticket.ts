@@ -1,5 +1,7 @@
 import { ConfidenceEntry, TotalsConfidenceEntry } from "./dashboard";
 
+export const LEG_OPTIONS = [2, 3, 4, 5, 6];
+
 /**
  * Sklada "tiket istoty" z najistejsich tipov (favorit 1X2 alebo Nad/Pod) -
  * najviac JEDNA noha na zapas (kombinovanie dvoch trhov z toho isteho

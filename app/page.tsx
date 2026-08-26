@@ -4,11 +4,10 @@ import { recordTipAction, refreshAction } from "@/lib/actions";
 import { LEAGUES, DEFAULT_LEAGUE_ID, getLeague } from "@/lib/leagues";
 import { formatKickoff, formatDayHeading, dayKey } from "@/lib/format";
 import { listOpenTips } from "@/lib/db";
-import { buildSafestTicket } from "@/lib/ticket";
+import { buildSafestTicket, LEG_OPTIONS } from "@/lib/ticket";
+import TicketTabs from "@/components/TicketTabs";
 
 export const dynamic = "force-dynamic";
-
-const LEG_OPTIONS = [2, 3, 4, 5, 6];
 
 function LeagueSwitcher({ activeId }: { activeId: string }) {
   return (
@@ -29,11 +28,10 @@ function LeagueSwitcher({ activeId }: { activeId: string }) {
 export default async function MatchesPage({
   searchParams,
 }: {
-  searchParams: { league?: string; legs?: string };
+  searchParams: { league?: string };
 }) {
   const leagueId = searchParams.league ?? DEFAULT_LEAGUE_ID;
   const league = getLeague(leagueId);
-  const numLegs = LEG_OPTIONS.includes(Number(searchParams.legs)) ? Number(searchParams.legs) : 3;
 
   let data;
   try {
@@ -67,10 +65,13 @@ export default async function MatchesPage({
     return iso ? formatKickoff(iso) : null;
   }
 
-  const ticket = buildSafestTicket(confidenceEntries, totalsConfidenceEntries, numLegs, bank);
-  const ticketRecorded = ticket
-    ? isRecorded(`Tiket (${ticket.legs.length}x)`, "tiket", ticket.legs.map((l) => `${l.match}: ${l.outcome}`).join(" | "))
-    : false;
+  const ticketsByLegs: Record<number, ReturnType<typeof buildSafestTicket>> = {};
+  for (const n of LEG_OPTIONS) {
+    ticketsByLegs[n] = buildSafestTicket(confidenceEntries, totalsConfidenceEntries, n, bank);
+  }
+  const openTicketKeys = openTips
+    .filter((t) => t.market === "tiket")
+    .map((t) => `${t.match}|${t.market}|${t.outcome}`);
 
   return (
     <div className="space-y-8 mt-4">
@@ -103,8 +104,11 @@ export default async function MatchesPage({
       )}
 
       {/* ---------- Value tipy ---------- */}
-      <section>
-        <h2 className="text-xl font-display font-semibold">💡 Value tipy</h2>
+      <details open className="group">
+        <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden flex items-center justify-between">
+          <h2 className="text-xl font-display font-semibold">💡 Value tipy</h2>
+          <span className="text-muted text-xs group-open:rotate-180 transition-transform">▼</span>
+        </summary>
         <p className="text-xs text-muted mt-1 mb-3">
           Hľadá kurzy, ktoré platia viac, než hovorí odhadovaná pravdepodobnosť.
         </p>
@@ -197,92 +201,28 @@ export default async function MatchesPage({
             </table>
           </div>
         </details>
-      </section>
+      </details>
 
       {/* ---------- Tiket istoty (kombinacia viacerych tipov) ---------- */}
-      <section>
-        <h2 className="text-xl font-display font-semibold">🎫 Tiket istoty</h2>
+      <details open className="group">
+        <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden flex items-center justify-between">
+          <h2 className="text-xl font-display font-semibold">🎫 Tiket istoty</h2>
+          <span className="text-muted text-xs group-open:rotate-180 transition-transform">▼</span>
+        </summary>
         <p className="text-xs text-muted mt-1 mb-3">
-          Automaticky poskladá {numLegs} najistejších tipov z rôznych zápasov do jedného tiketu
-          (max. jedna noha na zápas). Kombinovaná pravdepodobnosť = súčin jednotlivých — klesá
-          rýchlejšie, než by človek čakal.
+          Automaticky poskladá najistejšie tipy z rôznych zápasov do jedného tiketu (max. jedna
+          noha na zápas). Kombinovaná pravdepodobnosť = súčin jednotlivých — klesá rýchlejšie,
+          než by človek čakal.
         </p>
-
-        <div className="flex gap-2 mb-3">
-          {LEG_OPTIONS.map((n) => (
-            <Link
-              key={n}
-              href={`/?league=${leagueId}&legs=${n}`}
-              className={`badge ${n === numLegs ? "badge-green" : "badge-muted"} hover:border-green transition-colors`}
-            >
-              {n} nohy
-            </Link>
-          ))}
-        </div>
-
-        {!ticket ? (
-          <p className="text-sm text-muted">
-            Nedostatok istých tipov na zloženie {numLegs}-nohého tiketu z najbližších zápasov —
-            skús menej nôh, alebo počkaj na ďalšie zápasy.
-          </p>
-        ) : (
-          <div className="card">
-            <div className="space-y-2 mb-3">
-              {ticket.legs.map((leg, i) => (
-                <div key={i} className="flex items-center justify-between text-sm border-b border-border pb-2 last:border-0 last:pb-0">
-                  <div>
-                    <p className="font-medium">{leg.match}</p>
-                    <p className="text-xs text-muted">
-                      {leg.outcome} ({leg.market}) @ {leg.odds.toFixed(2)} · {leg.bookmaker}
-                    </p>
-                  </div>
-                  <span className="badge badge-muted shrink-0">{leg.modelProb.toFixed(0)}%</span>
-                </div>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <div>
-                <p className="text-[10px] uppercase tracking-wide text-muted">Kombinovaný kurz</p>
-                <p className="font-mono text-lg text-green">{ticket.combinedOdds.toFixed(2)}</p>
-              </div>
-              <div>
-                <p className="text-[10px] uppercase tracking-wide text-muted">Kombinovaná šanca</p>
-                <p className="font-mono text-lg">{ticket.combinedProb.toFixed(1)}%</p>
-              </div>
-            </div>
-
-            <p className="text-sm mb-3">
-              Stávka <span className="font-mono text-green">€{ticket.stake.toFixed(2)}</span> → výhra{" "}
-              <span className="font-mono">€{ticket.potentialPayout.toFixed(2)}</span>{" "}
-              <span className="text-muted">
-                (šanca {ticket.combinedProb.toFixed(0)}%, že vyhráš presne toto — nie viac)
-              </span>
-            </p>
-
-            <form action={recordTipAction}>
-              <input type="hidden" name="match" value={`Tiket (${ticket.legs.length}x)`} />
-              <input type="hidden" name="market" value="tiket" />
-              <input type="hidden" name="outcome" value={ticket.legs.map((l) => `${l.match}: ${l.outcome}`).join(" | ")} />
-              <input type="hidden" name="bookmaker" value={ticket.legs.map((l) => l.bookmaker).join(", ")} />
-              <input type="hidden" name="odds" value={ticket.combinedOdds} />
-              <input type="hidden" name="edge" value={0} />
-              <input type="hidden" name="stake" value={ticket.stake} />
-              {ticketRecorded ? (
-                <span className="text-xs text-green">✅ Už zaznamenané</span>
-              ) : (
-                <button className="btn" type="submit">
-                  📝 Zaznamenať tiket
-                </button>
-              )}
-            </form>
-          </div>
-        )}
-      </section>
+        <TicketTabs ticketsByLegs={ticketsByLegs} recordedKeys={openTicketKeys} />
+      </details>
 
       {/* ---------- Iste tipy ---------- */}
-      <section>
-        <h2 className="text-xl font-display font-semibold">🎯 Isté tipy</h2>
+      <details open className="group">
+        <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden flex items-center justify-between">
+          <h2 className="text-xl font-display font-semibold">🎯 Isté tipy</h2>
+          <span className="text-muted text-xs group-open:rotate-180 transition-transform">▼</span>
+        </summary>
         <p className="text-xs text-muted mt-1 mb-3">
           Hľadá výsledky s najvyššou šancou na trafenie, aj keď kurz je menší.
         </p>
@@ -397,7 +337,7 @@ export default async function MatchesPage({
             )}
           </div>
         )}
-      </section>
+      </details>
 
       {/* ---------- Vsetky zapasy (zoskupene podla dna) ---------- */}
       <section>

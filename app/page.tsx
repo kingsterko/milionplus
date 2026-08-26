@@ -7,11 +7,14 @@ export default async function MatchesPage() {
   let data;
   try {
     data = await getDashboardData();
-  } catch (e) {
+  } catch (e: unknown) {
+    const message =
+      (e as any)?.message ||
+      (typeof e === "object" ? JSON.stringify(e, null, 2) : String(e));
     return (
       <div className="card mt-6">
         <p className="text-red font-medium">Chyba pri načítaní dát</p>
-        <p className="text-sm text-muted mt-1">{e instanceof Error ? e.message : String(e)}</p>
+        <pre className="text-xs text-muted mt-2 whitespace-pre-wrap break-words">{message}</pre>
       </div>
     );
   }

@@ -92,6 +92,7 @@ export default function TicketTabs({
             <input type="hidden" name="bookmaker" value={ticket.legs.map((l) => l.bookmaker).join(", ")} />
             <input type="hidden" name="odds" value={ticket.combinedOdds} />
             <input type="hidden" name="edge" value={0} />
+            <input type="hidden" name="predictedProb" value={ticket.combinedProb} />
             <input type="hidden" name="stake" value={ticket.stake} />
             {isRecorded ? (
               <span className="text-xs text-green">✅ Už zaznamenané</span>

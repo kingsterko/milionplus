@@ -9,6 +9,9 @@ import TicketTabs from "@/components/TicketTabs";
 
 export const dynamic = "force-dynamic";
 
+const CONFIDENCE_OPTIONS = [50, 55, 60, 65, 70, 75, 80];
+const DEFAULT_MIN_CONFIDENCE = 55;
+
 function LeagueSwitcher({ activeId }: { activeId: string }) {
   return (
     <div className="flex gap-2 flex-wrap">
@@ -25,17 +28,37 @@ function LeagueSwitcher({ activeId }: { activeId: string }) {
   );
 }
 
+function ConfidenceSwitcher({ leagueId, active }: { leagueId: string; active: number }) {
+  return (
+    <div className="flex gap-2 flex-wrap items-center">
+      <span className="text-[10px] uppercase tracking-wide text-muted mr-1">Min. istota:</span>
+      {CONFIDENCE_OPTIONS.map((n) => (
+        <Link
+          key={n}
+          href={`/?league=${leagueId}&minConfidence=${n}`}
+          className={`badge ${n === active ? "badge-green" : "badge-muted"} hover:border-green transition-colors`}
+        >
+          {n}%
+        </Link>
+      ))}
+    </div>
+  );
+}
+
 export default async function MatchesPage({
   searchParams,
 }: {
-  searchParams: { league?: string };
+  searchParams: { league?: string; minConfidence?: string };
 }) {
   const leagueId = searchParams.league ?? DEFAULT_LEAGUE_ID;
   const league = getLeague(leagueId);
+  const minConfidence = CONFIDENCE_OPTIONS.includes(Number(searchParams.minConfidence))
+    ? Number(searchParams.minConfidence)
+    : DEFAULT_MIN_CONFIDENCE;
 
   let data;
   try {
-    data = await getDashboardData(leagueId);
+    data = await getDashboardData(leagueId, minConfidence);
   } catch (e: unknown) {
     const message =
       (e as any)?.message ||
@@ -76,6 +99,7 @@ export default async function MatchesPage({
   return (
     <div className="space-y-8 mt-4">
       <LeagueSwitcher activeId={league.id} />
+      <ConfidenceSwitcher leagueId={league.id} active={minConfidence} />
 
       <div className="flex items-center justify-between">
         <p className="text-xs text-muted">
@@ -144,7 +168,7 @@ export default async function MatchesPage({
                     <input type="hidden" name="outcome" value={t.outcome} />
                     <input type="hidden" name="bookmaker" value={t.bookmaker} />
                     <input type="hidden" name="odds" value={t.odds} />
-                    <input type="hidden" name="edge" value={t.edge} />
+                    <input type="hidden" name="edge" value={t.edge} /><input type="hidden" name="predictedProb" value={t.consensusProb} />
                     <input type="hidden" name="stake" value={t.stake} />
                     {isRecorded(t.match, "value", t.outcome) ? (
                       <span className="text-xs text-green">✅ Už zaznamenané (viď História)</span>
@@ -259,6 +283,7 @@ export default async function MatchesPage({
                           <input type="hidden" name="bookmaker" value={entry.confidence.bookmaker} />
                           <input type="hidden" name="odds" value={entry.confidence.odds} />
                           <input type="hidden" name="edge" value={entry.confidence.edge} />
+                          <input type="hidden" name="predictedProb" value={entry.confidence.modelProb} />
                           <input type="hidden" name="stake" value={Math.max(Math.round(bank * 0.02 * 100) / 100, 0.5)} />
                           {isRecorded(entry.match, "istota", entry.confidence.outcome) ? (
                             <span className="text-xs text-green">✅ Už zaznamenané</span>
@@ -322,6 +347,7 @@ export default async function MatchesPage({
                       <input type="hidden" name="bookmaker" value={entry.confidence.bookmaker} />
                       <input type="hidden" name="odds" value={entry.confidence.odds} />
                       <input type="hidden" name="edge" value={entry.confidence.edge} />
+                      <input type="hidden" name="predictedProb" value={entry.confidence.modelProb} />
                       <input type="hidden" name="stake" value={Math.max(Math.round(bank * 0.02 * 100) / 100, 0.5)} />
                       {isRecorded(entry.match, "istota", entry.confidence.outcome) ? (
                         <span className="text-xs text-green">✅ Už zaznamenané</span>

@@ -17,6 +17,7 @@ create table if not exists tips (
     bookmaker text,
     odds numeric not null,
     edge numeric,
+    predicted_prob numeric,
     stake numeric not null,
     status text not null default 'open',
     result text,

@@ -1,4 +1,4 @@
-import { getCurrentBank, getBankrollHistory, listOpenTips, listAllTips } from "@/lib/db";
+import { getCurrentBank, getBankrollHistory, listOpenTips, listAllTips, getCalibrationBuckets } from "@/lib/db";
 import { settleTipAction, updateBankAction, deleteTipAction } from "@/lib/actions";
 
 export const dynamic = "force-dynamic";
@@ -9,6 +9,7 @@ export default async function HistoryPage() {
   const openTips = await listOpenTips();
   const allTips = await listAllTips();
   const settled = allTips.filter((t) => t.status === "settled");
+  const calibration = await getCalibrationBuckets();
 
   const maxBank = Math.max(...bankHistory.map((b) => b.bank), bank, 1);
   const minBank = Math.min(...bankHistory.map((b) => b.bank), bank, 0);
@@ -52,6 +53,49 @@ export default async function HistoryPage() {
             </button>
           </form>
         </details>
+      </section>
+
+      <section>
+        <h2 className="text-xl font-display font-semibold mb-1">📈 Presnosť modelu</h2>
+        <p className="text-xs text-muted mb-3">
+          Porovnáva, čo model tvrdil (predikovaná %), s tým, čo sa reálne stalo (skutočná
+          úspešnosť) — len z už vysporiadaných tipov. Ak model funguje dobre, oba stĺpce by mali
+          byť blízko seba. Pásma s menej než 5 tipmi sú zatiaľ len orientačné — je to príliš
+          malá vzorka na vyvodzovanie záverov.
+        </p>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs font-mono">
+            <thead>
+              <tr className="text-muted text-left">
+                <th className="pr-4 py-1">pásmo</th>
+                <th className="pr-4">počet tipov</th>
+                <th className="pr-4">priem. predikcia</th>
+                <th className="pr-4">skutočná úspešnosť</th>
+                <th>rozdiel</th>
+              </tr>
+            </thead>
+            <tbody>
+              {calibration.map((b) => {
+                const diff =
+                  b.avgPredicted != null && b.actualHitRate != null
+                    ? Math.round((b.actualHitRate - b.avgPredicted) * 10) / 10
+                    : null;
+                return (
+                  <tr key={b.label} className="border-t border-border">
+                    <td className="pr-4 py-1.5">{b.label}</td>
+                    <td className="pr-4">{b.count}</td>
+                    <td className="pr-4">{b.avgPredicted != null ? `${b.avgPredicted.toFixed(1)}%` : "—"}</td>
+                    <td className="pr-4">{b.actualHitRate != null ? `${b.actualHitRate.toFixed(1)}%` : "—"}</td>
+                    <td className={diff == null ? "" : diff >= 0 ? "text-green" : "text-red"}>
+                      {diff == null ? "—" : `${diff >= 0 ? "+" : ""}${diff.toFixed(1)}%`}
+                      {b.count > 0 && b.count < 5 && <span className="text-muted ml-1">(málo dát)</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section>

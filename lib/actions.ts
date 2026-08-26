@@ -10,9 +10,10 @@ export async function recordTipAction(formData: FormData) {
   const bookmaker = String(formData.get("bookmaker"));
   const odds = parseFloat(String(formData.get("odds")));
   const edge = parseFloat(String(formData.get("edge")));
+  const predictedProb = parseFloat(String(formData.get("predictedProb")));
   const stake = parseFloat(String(formData.get("stake")));
 
-  await db.logTip(match, market, outcome, bookmaker, odds, edge, stake);
+  await db.logTip(match, market, outcome, bookmaker, odds, edge, predictedProb, stake);
   revalidatePath("/");
 }
 

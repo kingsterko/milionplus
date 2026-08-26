@@ -16,6 +16,7 @@ export interface Tip {
   bookmaker: string | null;
   odds: number;
   edge: number | null;
+  predicted_prob: number | null;
   stake: number;
   status: "open" | "settled";
   result: "won" | "lost" | null;
@@ -70,6 +71,7 @@ export async function logTip(
   bookmaker: string,
   odds: number,
   edge: number,
+  predictedProb: number,
   stake: number
 ): Promise<number> {
   const supabase = getSupabase();
@@ -83,6 +85,7 @@ export async function logTip(
       bookmaker,
       odds,
       edge,
+      predicted_prob: predictedProb,
       stake,
       status: "open",
     })
@@ -133,6 +136,57 @@ export async function settleTip(tipId: number, won: boolean): Promise<void> {
   const newBank = Math.round((currentBank + profit) * 100) / 100;
   const note = `${won ? "výhra" : "prehra"}: ${tip.match} (${tip.outcome})`;
   await setBank(newBank, note);
+}
+
+export interface CalibrationBucket {
+  label: string;
+  minPct: number;
+  maxPct: number;
+  count: number;
+  avgPredicted: number | null;
+  actualHitRate: number | null;
+}
+
+const CALIBRATION_BUCKETS = [
+  { label: "50-60%", min: 50, max: 60 },
+  { label: "60-70%", min: 60, max: 70 },
+  { label: "70-80%", min: 70, max: 80 },
+  { label: "80-90%", min: 80, max: 90 },
+  { label: "90-100%", min: 90, max: 100 },
+];
+
+/**
+ * Porovna, co model predikoval, s tym, co sa realne stalo. Zoskupi vysporiadane
+ * tipy (s ulozenou predicted_prob) do pasiem a spocita skutocnu uspesnost v kazdom.
+ * Ak model funguje dobre, "avgPredicted" a "actualHitRate" by mali byt blizko seba.
+ */
+export async function getCalibrationBuckets(): Promise<CalibrationBucket[]> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from("tips")
+    .select("predicted_prob, result")
+    .eq("status", "settled")
+    .not("predicted_prob", "is", null);
+  if (error) throw error;
+
+  const rows = (data ?? []) as { predicted_prob: number; result: "won" | "lost" }[];
+
+  return CALIBRATION_BUCKETS.map((b) => {
+    const inBucket = rows.filter((r) => r.predicted_prob >= b.min && r.predicted_prob < b.max);
+    if (inBucket.length === 0) {
+      return { label: b.label, minPct: b.min, maxPct: b.max, count: 0, avgPredicted: null, actualHitRate: null };
+    }
+    const avgPredicted = inBucket.reduce((acc, r) => acc + r.predicted_prob, 0) / inBucket.length;
+    const won = inBucket.filter((r) => r.result === "won").length;
+    return {
+      label: b.label,
+      minPct: b.min,
+      maxPct: b.max,
+      count: inBucket.length,
+      avgPredicted: Math.round(avgPredicted * 10) / 10,
+      actualHitRate: Math.round((won / inBucket.length) * 1000) / 10,
+    };
+  });
 }
 
 export async function isDuplicateOpenTip(match: string, market: string, outcome: string): Promise<boolean> {

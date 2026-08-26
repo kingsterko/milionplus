@@ -17,7 +17,7 @@ import {
 import { getCurrentBank } from "./db";
 import { getLeague } from "./leagues";
 
-const MIN_CONFIDENCE = 55;
+const DEFAULT_MIN_CONFIDENCE = 55;
 
 export interface ConfidenceEntry {
   match: string;
@@ -64,7 +64,7 @@ function currentSeasonStart(): number {
   return month >= 7 ? today.getUTCFullYear() : today.getUTCFullYear() - 1;
 }
 
-export async function getDashboardData(leagueId: string): Promise<DashboardData> {
+export async function getDashboardData(leagueId: string, minConfidence: number = DEFAULT_MIN_CONFIDENCE): Promise<DashboardData> {
   const league = getLeague(leagueId);
   const oddsApiKey = process.env.ODDS_API_KEY;
   const footballApiKey = process.env.FOOTBALL_DATA_API_KEY;
@@ -144,7 +144,7 @@ export async function getDashboardData(leagueId: string): Promise<DashboardData>
       valueTips.push(...tips);
 
       const { perOutcome, market } = perOutcomeAnalysis(ownProbs, m.odds, m.bookmakers);
-      const conf = confidencePick(perOutcome, MIN_CONFIDENCE);
+      const conf = confidencePick(perOutcome, minConfidence);
       const dc = doubleChancePick(perOutcome, market);
       if (conf || dc) confidenceEntries.push({ match: matchLabel, confidence: conf, doubleChance: dc });
 
@@ -178,7 +178,7 @@ export async function getDashboardData(leagueId: string): Promise<DashboardData>
       valueTips.push(...tTips);
 
       const { perOutcome: tPerOutcome } = perOutcomeAnalysisTotals(ownTotals, m.totalsOdds, m.totalsBookmakers, ["over", "under"]);
-      const tConf = confidencePick(tPerOutcome, MIN_CONFIDENCE, TOTALS_LABEL);
+      const tConf = confidencePick(tPerOutcome, minConfidence, TOTALS_LABEL);
       if (tConf) totalsConfidenceEntries.push({ match: matchLabel, confidence: tConf });
 
       for (const [k, info] of Object.entries(tPerOutcome)) {

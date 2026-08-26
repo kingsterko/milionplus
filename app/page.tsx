@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getDashboardData } from "@/lib/dashboard";
 import { recordTipAction, refreshAction } from "@/lib/actions";
 import { LEAGUES, DEFAULT_LEAGUE_ID, getLeague } from "@/lib/leagues";
+import { formatKickoff, formatDayHeading, dayKey } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +48,13 @@ export default async function MatchesPage({
     );
   }
 
-  const { matches, bank, valueTips, confidenceEntries, totalsConfidenceEntries, modelWarnings, diagnostics } = data;
+  const { matches, bank, valueTips, confidenceEntries, totalsConfidenceEntries, modelWarnings, diagnostics, kickoffByMatch } = data;
+
+  function kickoffFor(matchLabel: string): string | null {
+    const base = matchLabel.replace(/ \(Nad\/Pod\)$/, "");
+    const iso = kickoffByMatch[base];
+    return iso ? formatKickoff(iso) : null;
+  }
 
   return (
     <div className="space-y-8 mt-4">
@@ -55,7 +62,7 @@ export default async function MatchesPage({
 
       <div className="flex items-center justify-between">
         <p className="text-xs text-muted">
-          {league.label} · {matches.length} zápasov · bank €{bank.toFixed(2)}
+          {league.label} · najbližších {matches.length} zápasov · bank €{bank.toFixed(2)}
         </p>
         <form action={refreshAction}>
           <button className="btn-primary" type="submit">
@@ -99,6 +106,9 @@ export default async function MatchesPage({
                       <p className="text-xs text-muted">
                         {t.outcome} @ {t.bookmaker} · kurz {t.odds.toFixed(2)}
                       </p>
+                      {kickoffFor(t.match) && (
+                        <p className="text-[10px] font-mono text-muted mt-0.5">🕐 {kickoffFor(t.match)}</p>
+                      )}
                     </div>
                     <span className="badge badge-green shrink-0">
                       +{t.edge.toFixed(1)}% (prah {t.threshold.toFixed(1)}%)
@@ -181,7 +191,12 @@ export default async function MatchesPage({
           <div className="space-y-3">
             {confidenceEntries.map((entry, i) => (
               <div key={i} className="card">
-                <p className="font-medium mb-2">{entry.match}</p>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="font-medium">{entry.match}</p>
+                  {kickoffFor(entry.match) && (
+                    <span className="text-[10px] font-mono text-muted">🕐 {kickoffFor(entry.match)}</span>
+                  )}
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-[10px] uppercase tracking-wide text-muted mb-1">Favorit</p>
@@ -239,10 +254,17 @@ export default async function MatchesPage({
                 <p className="text-sm font-medium mt-4 mb-2">⚽ Nad/Pod 2.5 gólu</p>
                 {totalsConfidenceEntries.map((entry, i) => (
                   <div key={i} className="card mb-2">
-                    <p className="text-sm">
-                      <span className="font-medium">{entry.match}</span>: {entry.confidence.outcome} @{" "}
-                      {entry.confidence.odds.toFixed(2)} ({entry.confidence.bookmaker})
-                    </p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm">
+                        <span className="font-medium">{entry.match}</span>: {entry.confidence.outcome} @{" "}
+                        {entry.confidence.odds.toFixed(2)} ({entry.confidence.bookmaker})
+                      </p>
+                      {kickoffFor(entry.match) && (
+                        <span className="text-[10px] font-mono text-muted shrink-0 ml-2">
+                          🕐 {kickoffFor(entry.match)}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-muted">
                       Šanca: {entry.confidence.modelProb.toFixed(0)}% · edge{" "}
                       {entry.confidence.edge >= 0 ? "+" : ""}
@@ -268,38 +290,58 @@ export default async function MatchesPage({
         )}
       </section>
 
-      {/* ---------- Vsetky zapasy ---------- */}
+      {/* ---------- Vsetky zapasy (zoskupene podla dna) ---------- */}
       <section>
-        <h2 className="text-xl font-display font-semibold mb-3">📋 Všetky zápasy a kurzy</h2>
-        <div className="space-y-2">
-          {matches.map((m, i) => (
-            <details key={i} className="card">
-              <summary className="cursor-pointer text-sm font-medium">
-                {m.home} vs {m.away} — {m.commenceTime.slice(0, 16).replace("T", " ")}
-              </summary>
-              <div className="mt-2 space-y-2 text-xs">
-                {m.odds.length > 0 && (
-                  <div>
-                    <p className="text-muted mb-1">1X2:</p>
-                    {m.bookmakers.map((bm, j) => (
-                      <p key={j} className="font-mono">
-                        {bm}: 1={m.odds[j].h.toFixed(2)} X={m.odds[j].d.toFixed(2)} 2={m.odds[j].a.toFixed(2)}
-                      </p>
-                    ))}
-                  </div>
-                )}
-                {m.totalsOdds.length > 0 && (
-                  <div>
-                    <p className="text-muted mb-1">Nad/Pod 2.5:</p>
-                    {m.totalsBookmakers.map((bm, j) => (
-                      <p key={j} className="font-mono">
-                        {bm}: Nad={m.totalsOdds[j].over.toFixed(2)} Pod={m.totalsOdds[j].under.toFixed(2)}
-                      </p>
-                    ))}
-                  </div>
-                )}
+        <h2 className="text-xl font-display font-semibold mb-3">📋 Najbližších {matches.length} zápasov</h2>
+        <div className="space-y-4">
+          {Object.entries(
+            matches.reduce<Record<string, typeof matches>>((groups, m) => {
+              const key = dayKey(m.commenceTime);
+              (groups[key] ??= []).push(m);
+              return groups;
+            }, {})
+          ).map(([key, dayMatches]) => (
+            <div key={key}>
+              <p className="text-[10px] uppercase tracking-widest text-green font-mono mb-2">
+                {formatDayHeading(dayMatches[0].commenceTime)}
+              </p>
+              <div className="space-y-2">
+                {dayMatches.map((m, i) => (
+                  <details key={i} className="card">
+                    <summary className="cursor-pointer text-sm font-medium flex items-center justify-between gap-2">
+                      <span>
+                        {m.home} vs {m.away}
+                      </span>
+                      <span className="text-[10px] font-mono text-muted shrink-0">
+                        {new Date(m.commenceTime).toLocaleTimeString("sk-SK", { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    </summary>
+                    <div className="mt-2 space-y-2 text-xs">
+                      {m.odds.length > 0 && (
+                        <div>
+                          <p className="text-muted mb-1">1X2:</p>
+                          {m.bookmakers.map((bm, j) => (
+                            <p key={j} className="font-mono">
+                              {bm}: 1={m.odds[j].h.toFixed(2)} X={m.odds[j].d.toFixed(2)} 2={m.odds[j].a.toFixed(2)}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                      {m.totalsOdds.length > 0 && (
+                        <div>
+                          <p className="text-muted mb-1">Nad/Pod 2.5:</p>
+                          {m.totalsBookmakers.map((bm, j) => (
+                            <p key={j} className="font-mono">
+                              {bm}: Nad={m.totalsOdds[j].over.toFixed(2)} Pod={m.totalsOdds[j].under.toFixed(2)}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </details>
+                ))}
               </div>
-            </details>
+            </div>
           ))}
         </div>
       </section>

@@ -43,6 +43,8 @@ export interface DiagnosticRow {
   presiel: boolean;
 }
 
+const MAX_MATCHES = 10;
+
 export interface DashboardData {
   matches: OddsMatch[];
   bank: number;
@@ -53,6 +55,7 @@ export interface DashboardData {
   diagnostics: DiagnosticRow[];
   modelError: string | null;
   useOwnModel: boolean;
+  kickoffByMatch: Record<string, string>;
 }
 
 function currentSeasonStart(): number {
@@ -84,9 +87,17 @@ export async function getDashboardData(leagueId: string): Promise<DashboardData>
     throw new Error(`[The Odds API] ${e?.message || JSON.stringify(e)}`);
   }
 
-  // Zoradene podla casu vykopu (najblizsi zapas prvy) - vsetko nizsie (tipy, istota)
-  // sa poklada v tomto poradi, takze zdedi rovnaku chronologicku strukturu.
-  matches = [...matches].sort((a, b) => (a.commenceTime < b.commenceTime ? -1 : a.commenceTime > b.commenceTime ? 1 : 0));
+  // Zoradene podla casu vykopu (najblizsi zapas prvy), len buduce zapasy,
+  // obmedzene na najblizsich MAX_MATCHES - vsetko nizsie (tipy, istota)
+  // sa poklada v tomto poradi/rozsahu.
+  const nowMs = Date.now();
+  matches = matches
+    .filter((m) => new Date(m.commenceTime).getTime() >= nowMs)
+    .sort((a, b) => (a.commenceTime < b.commenceTime ? -1 : a.commenceTime > b.commenceTime ? 1 : 0))
+    .slice(0, MAX_MATCHES);
+
+  const kickoffByMatch: Record<string, string> = {};
+  for (const m of matches) kickoffByMatch[`${m.home} vs ${m.away}`] = m.commenceTime;
 
   const useOwnModel = Boolean(footballApiKey) && Boolean(league.footballDataCode);
   let matchIndex: ReturnType<typeof buildMatchIndex> = {};
@@ -197,5 +208,6 @@ export async function getDashboardData(leagueId: string): Promise<DashboardData>
     diagnostics,
     modelError,
     useOwnModel,
+    kickoffByMatch,
   };
 }

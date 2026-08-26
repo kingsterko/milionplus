@@ -1,5 +1,5 @@
 import { getCurrentBank, getBankrollHistory, listOpenTips, listAllTips } from "@/lib/db";
-import { settleTipAction, updateBankAction } from "@/lib/actions";
+import { settleTipAction, updateBankAction, deleteTipAction } from "@/lib/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -79,6 +79,17 @@ export default async function HistoryPage() {
                     <input type="hidden" name="won" value="false" />
                     <button className="btn" type="submit" style={{ borderColor: "#E23D2866", color: "#E23D28" }}>
                       ❌ Prehral
+                    </button>
+                  </form>
+                  <form action={deleteTipAction}>
+                    <input type="hidden" name="id" value={tip.id} />
+                    <button
+                      className="btn"
+                      type="submit"
+                      style={{ borderColor: "#8A908866", color: "#8A9088" }}
+                      title="Zmaž, ak si sa preklikol a zaznamenal tip omylom"
+                    >
+                      🗑️ Zmazať
                     </button>
                   </form>
                 </div>

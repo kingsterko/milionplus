@@ -25,6 +25,13 @@ export async function settleTipAction(formData: FormData) {
   revalidatePath("/history");
 }
 
+export async function deleteTipAction(formData: FormData) {
+  const id = parseInt(String(formData.get("id")), 10);
+  await db.deleteTip(id);
+  revalidatePath("/");
+  revalidatePath("/history");
+}
+
 export async function updateBankAction(formData: FormData) {
   const value = parseFloat(String(formData.get("bank")));
   if (Number.isNaN(value) || value < 0) return;

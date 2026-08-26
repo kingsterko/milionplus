@@ -147,3 +147,9 @@ export async function isDuplicateOpenTip(match: string, market: string, outcome:
   if (error) throw error;
   return (count ?? 0) > 0;
 }
+
+export async function deleteTip(tipId: number): Promise<void> {
+  const supabase = getSupabase();
+  const { error } = await supabase.from("tips").delete().eq("id", tipId).eq("status", "open");
+  if (error) throw error;
+}

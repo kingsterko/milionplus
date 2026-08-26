@@ -3,6 +3,7 @@ import { getDashboardData } from "@/lib/dashboard";
 import { recordTipAction, refreshAction } from "@/lib/actions";
 import { LEAGUES, DEFAULT_LEAGUE_ID, getLeague } from "@/lib/leagues";
 import { formatKickoff, formatDayHeading, dayKey } from "@/lib/format";
+import { listOpenTips } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +50,12 @@ export default async function MatchesPage({
   }
 
   const { matches, bank, valueTips, confidenceEntries, totalsConfidenceEntries, modelWarnings, diagnostics, kickoffByMatch } = data;
+
+  const openTips = await listOpenTips();
+  const openKeys = new Set(openTips.map((t) => `${t.match}|${t.market}|${t.outcome}`));
+  function isRecorded(match: string, market: string, outcome: string): boolean {
+    return openKeys.has(`${match}|${market}|${outcome}`);
+  }
 
   function kickoffFor(matchLabel: string): string | null {
     const base = matchLabel.replace(/ \(Nad\/Pod\)$/, "");
@@ -126,9 +133,13 @@ export default async function MatchesPage({
                     <input type="hidden" name="odds" value={t.odds} />
                     <input type="hidden" name="edge" value={t.edge} />
                     <input type="hidden" name="stake" value={t.stake} />
-                    <button className="btn" type="submit">
-                      📝 Zaznamenať
-                    </button>
+                    {isRecorded(t.match, "value", t.outcome) ? (
+                      <span className="text-xs text-green">✅ Už zaznamenané (viď História)</span>
+                    ) : (
+                      <button className="btn" type="submit">
+                        📝 Zaznamenať
+                      </button>
+                    )}
                   </form>
                 </div>
               ))}
@@ -219,9 +230,13 @@ export default async function MatchesPage({
                           <input type="hidden" name="odds" value={entry.confidence.odds} />
                           <input type="hidden" name="edge" value={entry.confidence.edge} />
                           <input type="hidden" name="stake" value={Math.max(Math.round(bank * 0.02 * 100) / 100, 0.5)} />
-                          <button className="btn" type="submit">
-                            📝 Zaznamenať
-                          </button>
+                          {isRecorded(entry.match, "istota", entry.confidence.outcome) ? (
+                            <span className="text-xs text-green">✅ Už zaznamenané</span>
+                          ) : (
+                            <button className="btn" type="submit">
+                              📝 Zaznamenať
+                            </button>
+                          )}
                         </form>
                       </>
                     ) : (
@@ -278,9 +293,13 @@ export default async function MatchesPage({
                       <input type="hidden" name="odds" value={entry.confidence.odds} />
                       <input type="hidden" name="edge" value={entry.confidence.edge} />
                       <input type="hidden" name="stake" value={Math.max(Math.round(bank * 0.02 * 100) / 100, 0.5)} />
-                      <button className="btn" type="submit">
-                        📝 Zaznamenať
-                      </button>
+                      {isRecorded(entry.match, "istota", entry.confidence.outcome) ? (
+                        <span className="text-xs text-green">✅ Už zaznamenané</span>
+                      ) : (
+                        <button className="btn" type="submit">
+                          📝 Zaznamenať
+                        </button>
+                      )}
                     </form>
                   </div>
                 ))}

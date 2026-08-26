@@ -68,8 +68,19 @@ export async function getDashboardData(): Promise<DashboardData> {
     throw new Error("Chýba ODDS_API_KEY v premenných prostredia (nastav vo Vercel -> Settings -> Environment Variables).");
   }
 
-  const bank = await getCurrentBank();
-  const matches = await fetchEplOdds(oddsApiKey);
+  let bank: number;
+  try {
+    bank = await getCurrentBank();
+  } catch (e: any) {
+    throw new Error(`[Supabase] ${e?.message || JSON.stringify(e)}`);
+  }
+
+  let matches: OddsMatch[];
+  try {
+    matches = await fetchEplOdds(oddsApiKey);
+  } catch (e: any) {
+    throw new Error(`[The Odds API] ${e?.message || JSON.stringify(e)}`);
+  }
 
   const useOwnModel = Boolean(footballApiKey);
   let matchIndex: ReturnType<typeof buildMatchIndex> = {};

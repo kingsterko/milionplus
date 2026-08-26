@@ -7,7 +7,6 @@
 import type { TeamVenueStats } from "./poisson";
 
 const BASE_URL = "https://api.football-data.org/v4";
-const PREMIER_LEAGUE_CODE = "PL";
 
 export const MAX_MATCHES_PER_VENUE = 8;
 export const RECENCY_DECAY = 0.9;
@@ -51,8 +50,8 @@ function matchTeam(target: string, available: string[]): string | null {
   return null;
 }
 
-export async function fetchSeasonMatches(apiKey: string, season: number): Promise<RawMatch[]> {
-  const url = `${BASE_URL}/competitions/${PREMIER_LEAGUE_CODE}/matches?season=${season}&status=FINISHED`;
+export async function fetchSeasonMatches(apiKey: string, season: number, competitionCode: string): Promise<RawMatch[]> {
+  const url = `${BASE_URL}/competitions/${competitionCode}/matches?season=${season}&status=FINISHED`;
   const resp = await fetch(url, { headers: { "X-Auth-Token": apiKey }, next: { revalidate: 6 * 3600 } });
 
   if (resp.status === 401 || resp.status === 403) {

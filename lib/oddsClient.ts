@@ -3,7 +3,7 @@
  * od viacerych bookmakerov cez The Odds API.
  */
 
-const BASE_URL = "https://api.the-odds-api.com/v4/sports/soccer_epl/odds";
+const BASE_URL_TEMPLATE = (sportKey: string) => `https://api.the-odds-api.com/v4/sports/${sportKey}/odds`;
 const TOTALS_LINE = 2.5;
 
 export interface OddsMatch {
@@ -16,7 +16,7 @@ export interface OddsMatch {
   totalsOdds: { over: number; under: number }[];
 }
 
-export async function fetchEplOdds(apiKey: string, region = "uk"): Promise<OddsMatch[]> {
+export async function fetchLeagueOdds(apiKey: string, sportKey: string, region = "uk"): Promise<OddsMatch[]> {
   const params = new URLSearchParams({
     apiKey,
     regions: region,
@@ -24,7 +24,7 @@ export async function fetchEplOdds(apiKey: string, region = "uk"): Promise<OddsM
     oddsFormat: "decimal",
   });
 
-  const resp = await fetch(`${BASE_URL}?${params.toString()}`, { cache: "no-store" });
+  const resp = await fetch(`${BASE_URL_TEMPLATE(sportKey)}?${params.toString()}`, { cache: "no-store" });
   if (!resp.ok) {
     const text = await resp.text();
     throw new Error(`The Odds API chyba (status ${resp.status}): ${text.slice(0, 200)}`);

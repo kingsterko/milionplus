@@ -3,7 +3,7 @@ import Link from "next/link";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "EDGE XI",
+  title: "MilionPlus",
   description: "Premier League value betting dashboard",
 };
 
@@ -14,7 +14,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <div className="max-w-2xl mx-auto px-4 pt-8 pb-4">
           <div className="flex items-baseline justify-between">
             <h1 className="text-3xl font-display font-bold tracking-tight">
-              EDGE<span className="text-green">XI</span>
+              Milion<span className="text-green">Plus</span>
             </h1>
             <span className="text-[10px] font-mono uppercase tracking-widest text-muted">
               Premier League

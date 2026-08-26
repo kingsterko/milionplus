@@ -1,4 +1,4 @@
-# EDGE XI (web) — Next.js + Supabase + Vercel
+# MilionPlus (web) — Next.js + Supabase + Vercel
 
 Toto je "graduovaná" verzia appky — rovnaká logika ako v pôvodnej Streamlit
 appke (value tipy, isté tipy, dvojšanca, Nad/Pod 2.5 gólu, vážený xG model
@@ -11,7 +11,7 @@ Celý postup nižšie sa dá spraviť **len cez prehliadač**, bez inštalácie
 ## 1. Založ Supabase projekt (databáza)
 
 1. Choď na **supabase.com** → "Start your project" → prihlás sa cez GitHub.
-2. "New project" → daj mu meno (napr. `edge-xi`) → zvoľ heslo pre databázu
+2. "New project" → daj mu meno (napr. `milionplus`) → zvoľ heslo pre databázu
    (ulož si ho, ale reálne ho nebudeš potrebovať zadávať appke) → "Create".
 3. Počkaj cca minútu, kým sa projekt vytvorí.
 4. V ľavom menu choď na **"SQL Editor"** → "New query".
@@ -26,7 +26,7 @@ Celý postup nižšie sa dá spraviť **len cez prehliadač**, bez inštalácie
 
 ## 2. Nahraj kód na GitHub
 
-1. Na **github.com** → "New repository" → meno napr. `edge-xi-web` → Public
+1. Na **github.com** → "New repository" → meno napr. `milionplus-web` → Public
    → "Create repository".
 2. "uploading an existing file" → nahraj **všetky súbory a priečinky**
    z tohto priečinka (`app/`, `lib/`, `supabase/`, `package.json`,
@@ -38,7 +38,7 @@ Celý postup nižšie sa dá spraviť **len cez prehliadač**, bez inštalácie
 ## 3. Nasaď na Vercel
 
 1. Choď na **vercel.com** → "Sign Up" → prihlás sa cez GitHub.
-2. "Add New..." → "Project" → vyber repozitár `edge-xi-web` → "Import".
+2. "Add New..." → "Project" → vyber repozitár `milionplus-web` → "Import".
 3. Vercel automaticky rozpozná Next.js — nič meniť netreba, len klikni
    na sekciu **"Environment Variables"** pred nasadením (alebo ich pridaj
    po nasadení cez Settings → Environment Variables) a vlož:
@@ -51,7 +51,7 @@ Celý postup nižšie sa dá spraviť **len cez prehliadač**, bez inštalácie
    | `SUPABASE_SERVICE_ROLE_KEY` | service_role key zo Supabase (krok 1.6) |
 
 4. Klikni **"Deploy"**. O 1-2 minúty appka pobeží na verejnej adrese
-   (napr. `edge-xi-web.vercel.app`).
+   (napr. `milionplus-web.vercel.app`).
 
 ## Dôležité bezpečnostné poznámky
 

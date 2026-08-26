@@ -1,20 +1,48 @@
+import Link from "next/link";
 import { getDashboardData } from "@/lib/dashboard";
 import { recordTipAction, refreshAction } from "@/lib/actions";
+import { LEAGUES, DEFAULT_LEAGUE_ID, getLeague } from "@/lib/leagues";
 
 export const dynamic = "force-dynamic";
 
-export default async function MatchesPage() {
+function LeagueSwitcher({ activeId }: { activeId: string }) {
+  return (
+    <div className="flex gap-2 flex-wrap">
+      {LEAGUES.map((l) => (
+        <Link
+          key={l.id}
+          href={`/?league=${l.id}`}
+          className={`badge ${l.id === activeId ? "badge-green" : "badge-muted"} hover:border-green transition-colors`}
+        >
+          {l.label}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+export default async function MatchesPage({
+  searchParams,
+}: {
+  searchParams: { league?: string };
+}) {
+  const leagueId = searchParams.league ?? DEFAULT_LEAGUE_ID;
+  const league = getLeague(leagueId);
+
   let data;
   try {
-    data = await getDashboardData();
+    data = await getDashboardData(leagueId);
   } catch (e: unknown) {
     const message =
       (e as any)?.message ||
       (typeof e === "object" ? JSON.stringify(e, null, 2) : String(e));
     return (
-      <div className="card mt-6">
-        <p className="text-red font-medium">Chyba pri načítaní dát</p>
-        <pre className="text-xs text-muted mt-2 whitespace-pre-wrap break-words">{message}</pre>
+      <div className="space-y-4 mt-4">
+        <LeagueSwitcher activeId={league.id} />
+        <div className="card">
+          <p className="text-red font-medium">Chyba pri načítaní dát</p>
+          <pre className="text-xs text-muted mt-2 whitespace-pre-wrap break-words">{message}</pre>
+        </div>
       </div>
     );
   }
@@ -23,9 +51,11 @@ export default async function MatchesPage() {
 
   return (
     <div className="space-y-8 mt-4">
+      <LeagueSwitcher activeId={league.id} />
+
       <div className="flex items-center justify-between">
         <p className="text-xs text-muted">
-          Nájdených {matches.length} zápasov · bank €{bank.toFixed(2)}
+          {league.label} · {matches.length} zápasov · bank €{bank.toFixed(2)}
         </p>
         <form action={refreshAction}>
           <button className="btn-primary" type="submit">
@@ -61,9 +91,7 @@ export default async function MatchesPage() {
           </p>
         ) : (
           <div className="space-y-3">
-            {[...valueTips]
-              .sort((a, b) => b.edge - a.edge)
-              .map((t, i) => (
+            {valueTips.map((t, i) => (
                 <div key={i} className="card">
                   <div className="flex items-start justify-between gap-3">
                     <div>

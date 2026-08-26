@@ -1,4 +1,4 @@
-import { fetchEplOdds, OddsMatch } from "./oddsClient";
+import { fetchLeagueOdds, OddsMatch } from "./oddsClient";
 import { fetchSeasonMatches, buildMatchIndex, weightedStatsForTeam, FootballDataError } from "./footballData";
 import { predictMatch } from "./poisson";
 import {
@@ -15,6 +15,7 @@ import {
   DoubleChancePick,
 } from "./model";
 import { getCurrentBank } from "./db";
+import { getLeague } from "./leagues";
 
 const MIN_CONFIDENCE = 55;
 
@@ -60,7 +61,8 @@ function currentSeasonStart(): number {
   return month >= 7 ? today.getUTCFullYear() : today.getUTCFullYear() - 1;
 }
 
-export async function getDashboardData(): Promise<DashboardData> {
+export async function getDashboardData(leagueId: string): Promise<DashboardData> {
+  const league = getLeague(leagueId);
   const oddsApiKey = process.env.ODDS_API_KEY;
   const footballApiKey = process.env.FOOTBALL_DATA_API_KEY;
 
@@ -77,21 +79,25 @@ export async function getDashboardData(): Promise<DashboardData> {
 
   let matches: OddsMatch[];
   try {
-    matches = await fetchEplOdds(oddsApiKey);
+    matches = await fetchLeagueOdds(oddsApiKey, league.oddsSportKey);
   } catch (e: any) {
     throw new Error(`[The Odds API] ${e?.message || JSON.stringify(e)}`);
   }
 
-  const useOwnModel = Boolean(footballApiKey);
+  // Zoradene podla casu vykopu (najblizsi zapas prvy) - vsetko nizsie (tipy, istota)
+  // sa poklada v tomto poradi, takze zdedi rovnaku chronologicku strukturu.
+  matches = [...matches].sort((a, b) => (a.commenceTime < b.commenceTime ? -1 : a.commenceTime > b.commenceTime ? 1 : 0));
+
+  const useOwnModel = Boolean(footballApiKey) && Boolean(league.footballDataCode);
   let matchIndex: ReturnType<typeof buildMatchIndex> = {};
   let modelError: string | null = null;
 
-  if (useOwnModel && footballApiKey) {
+  if (useOwnModel && footballApiKey && league.footballDataCode) {
     try {
       const season = currentSeasonStart();
       const [current, previous] = await Promise.all([
-        fetchSeasonMatches(footballApiKey, season),
-        fetchSeasonMatches(footballApiKey, season - 1),
+        fetchSeasonMatches(footballApiKey, season, league.footballDataCode),
+        fetchSeasonMatches(footballApiKey, season - 1, league.footballDataCode),
       ]);
       matchIndex = buildMatchIndex([...current, ...previous]);
     } catch (e) {

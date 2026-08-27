@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getDashboardData } from "@/lib/dashboard";
+import { getDashboardData, getMixTicketData } from "@/lib/dashboard";
 import { recordTipAction, refreshAction } from "@/lib/actions";
 import { LEAGUES, DEFAULT_LEAGUE_ID, getLeague } from "@/lib/leagues";
 import { formatKickoff, formatDayHeading, dayKey } from "@/lib/format";
@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
 
 const CONFIDENCE_OPTIONS = [50, 55, 60, 65, 70, 75, 80];
 const DEFAULT_MIN_CONFIDENCE = 55;
+const MIX_ID = "mix";
 
 function LeagueSwitcher({ activeId }: { activeId: string }) {
   return (
@@ -24,6 +25,12 @@ function LeagueSwitcher({ activeId }: { activeId: string }) {
           {l.label}
         </Link>
       ))}
+      <Link
+        href={`/?league=${MIX_ID}`}
+        className={`badge ${activeId === MIX_ID ? "badge-green" : "badge-muted"} hover:border-green transition-colors`}
+      >
+        🎲 MIX
+      </Link>
     </div>
   );
 }
@@ -51,10 +58,79 @@ export default async function MatchesPage({
   searchParams: { league?: string; minConfidence?: string };
 }) {
   const leagueId = searchParams.league ?? DEFAULT_LEAGUE_ID;
-  const league = getLeague(leagueId);
   const minConfidence = CONFIDENCE_OPTIONS.includes(Number(searchParams.minConfidence))
     ? Number(searchParams.minConfidence)
     : DEFAULT_MIN_CONFIDENCE;
+
+  if (leagueId === MIX_ID) {
+    let mixData;
+    try {
+      mixData = await getMixTicketData(minConfidence);
+    } catch (e: unknown) {
+      const message =
+        (e as any)?.message || (typeof e === "object" ? JSON.stringify(e, null, 2) : String(e));
+      return (
+        <div className="space-y-4 mt-4">
+          <LeagueSwitcher activeId={MIX_ID} />
+          <div className="card">
+            <p className="text-red font-medium">Chyba pri načítaní dát</p>
+            <pre className="text-xs text-muted mt-2 whitespace-pre-wrap break-words">{message}</pre>
+          </div>
+        </div>
+      );
+    }
+
+    const { bank, confidenceEntries, totalsConfidenceEntries, leagueErrors } = mixData;
+    const openTips = await listOpenTips();
+    const openTicketKeys = openTips
+      .filter((t) => t.market === "tiket")
+      .map((t) => `${t.match}|${t.market}|${t.outcome}`);
+
+    const ticketsByLegs: Record<number, ReturnType<typeof buildSafestTicket>> = {};
+    for (const n of LEG_OPTIONS) {
+      ticketsByLegs[n] = buildSafestTicket(confidenceEntries, totalsConfidenceEntries, n, bank);
+    }
+
+    return (
+      <div className="space-y-8 mt-4">
+        <LeagueSwitcher activeId={MIX_ID} />
+        <ConfidenceSwitcher leagueId={MIX_ID} active={minConfidence} />
+
+        <p className="text-xs text-muted">
+          🎲 MIX · isté tipy zo všetkých {LEAGUES.length} líg naraz · bank €{bank.toFixed(2)}
+        </p>
+
+        {leagueErrors.length > 0 && (
+          <details className="card">
+            <summary className="cursor-pointer text-sm font-medium">
+              ⚠️ {leagueErrors.length} lig(a) sa nepodarilo načítať (ostatné pokračujú normálne)
+            </summary>
+            <ul className="mt-2 space-y-1">
+              {leagueErrors.map((e, i) => (
+                <li key={i} className="text-xs text-muted">
+                  <span className="font-medium">{e.league}:</span> {e.message}
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+
+        <details open className="group">
+          <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden flex items-center justify-between">
+            <h2 className="text-xl font-display font-semibold">🎫 MIX tiket istoty</h2>
+            <span className="text-muted text-xs group-open:rotate-180 transition-transform">▼</span>
+          </summary>
+          <p className="text-xs text-muted mt-1 mb-3">
+            Poskladá najistejšie tipy naprieč všetkými ligami (max. jedna noha na zápas). Rovnaká
+            logika ako tiket pre jednu ligu, len s oveľa väčším výberom zápasov.
+          </p>
+          <TicketTabs ticketsByLegs={ticketsByLegs} recordedKeys={openTicketKeys} />
+        </details>
+      </div>
+    );
+  }
+
+  const league = getLeague(leagueId);
 
   let data;
   try {

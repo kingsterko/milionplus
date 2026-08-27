@@ -16,6 +16,7 @@ export const LEG_OPTIONS = [2, 3, 4, 5, 6];
 
 export interface TicketLeg {
   match: string;
+  league?: string;
   outcome: string;
   market: string;
   odds: number;
@@ -41,8 +42,10 @@ export function buildSafestTicket(
 
   for (const e of confidenceEntries) {
     if (!e.confidence) continue;
-    pool.set(e.match, {
+    const key = `${e.league ?? ""}|${e.match}`;
+    pool.set(key, {
       match: e.match,
+      league: e.league,
       outcome: e.confidence.outcome,
       market: "1X2",
       odds: e.confidence.odds,
@@ -52,10 +55,12 @@ export function buildSafestTicket(
   }
 
   for (const e of totalsConfidenceEntries) {
-    const existing = pool.get(e.match);
+    const key = `${e.league ?? ""}|${e.match}`;
+    const existing = pool.get(key);
     if (!existing || e.confidence.modelProb > existing.modelProb) {
-      pool.set(e.match, {
+      pool.set(key, {
         match: e.match,
+        league: e.league,
         outcome: e.confidence.outcome,
         market: "Nad/Pod",
         odds: e.confidence.odds,

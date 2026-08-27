@@ -18,9 +18,10 @@ export default function TicketTabs({
   const ticket = ticketsByLegs[legs];
   const recordedSet = new Set(recordedKeys);
 
-  const ticketKey = ticket
-    ? `Tiket (${ticket.legs.length}x)|tiket|${ticket.legs.map((l) => `${l.match}: ${l.outcome}`).join(" | ")}`
+  const ticketOutcome = ticket
+    ? ticket.legs.map((l) => `${l.league ? `[${l.league}] ` : ""}${l.match}: ${l.outcome}`).join(" | ")
     : "";
+  const ticketKey = ticket ? `Tiket (${ticket.legs.length}x)|tiket|${ticketOutcome}` : "";
   const isRecorded = recordedSet.has(ticketKey);
 
   return (
@@ -52,7 +53,10 @@ export default function TicketTabs({
                 className="flex items-center justify-between text-sm border-b border-border pb-2 last:border-0 last:pb-0"
               >
                 <div>
-                  <p className="font-medium">{leg.match}</p>
+                  <p className="font-medium">
+                    {leg.match}
+                    {leg.league && <span className="text-muted font-normal"> · {leg.league}</span>}
+                  </p>
                   <p className="text-xs text-muted">
                     {leg.outcome} ({leg.market}) @ {leg.odds.toFixed(2)} · {leg.bookmaker}
                   </p>
@@ -84,11 +88,7 @@ export default function TicketTabs({
           <form action={recordTipAction}>
             <input type="hidden" name="match" value={`Tiket (${ticket.legs.length}x)`} />
             <input type="hidden" name="market" value="tiket" />
-            <input
-              type="hidden"
-              name="outcome"
-              value={ticket.legs.map((l) => `${l.match}: ${l.outcome}`).join(" | ")}
-            />
+            <input type="hidden" name="outcome" value={ticketOutcome} />
             <input type="hidden" name="bookmaker" value={ticket.legs.map((l) => l.bookmaker).join(", ")} />
             <input type="hidden" name="odds" value={ticket.combinedOdds} />
             <input type="hidden" name="edge" value={0} />

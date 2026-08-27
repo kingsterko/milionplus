@@ -138,6 +138,17 @@ export async function settleTip(tipId: number, won: boolean): Promise<void> {
   await setBank(newBank, note);
 }
 
+export async function updateTip(tipId: number, updates: { odds?: number; stake?: number }): Promise<void> {
+  const supabase = getSupabase();
+  const patch: Record<string, number> = {};
+  if (updates.odds != null && updates.odds > 1) patch.odds = Math.round(updates.odds * 100) / 100;
+  if (updates.stake != null && updates.stake > 0) patch.stake = Math.round(updates.stake * 100) / 100;
+  if (Object.keys(patch).length === 0) return;
+
+  const { error } = await supabase.from("tips").update(patch).eq("id", tipId).eq("status", "open");
+  if (error) throw error;
+}
+
 export interface CalibrationBucket {
   label: string;
   minPct: number;

@@ -33,6 +33,21 @@ export async function deleteTipAction(formData: FormData) {
   revalidatePath("/history");
 }
 
+export async function editTipAction(formData: FormData) {
+  const id = parseInt(String(formData.get("id")), 10);
+  if (Number.isNaN(id)) return;
+
+  const odds = parseFloat(String(formData.get("odds")));
+  const stake = parseFloat(String(formData.get("stake")));
+
+  await db.updateTip(id, {
+    odds: Number.isNaN(odds) ? undefined : odds,
+    stake: Number.isNaN(stake) ? undefined : stake,
+  });
+  revalidatePath("/");
+  revalidatePath("/history");
+}
+
 export async function updateBankAction(formData: FormData) {
   const value = parseFloat(String(formData.get("bank")));
   if (Number.isNaN(value) || value < 0) return;

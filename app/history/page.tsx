@@ -1,5 +1,5 @@
 import { getCurrentBank, getBankrollHistory, listOpenTips, listAllTips, getCalibrationBuckets } from "@/lib/db";
-import { settleTipAction, updateBankAction, deleteTipAction } from "@/lib/actions";
+import { settleTipAction, updateBankAction, deleteTipAction, editTipAction } from "@/lib/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -137,6 +137,40 @@ export default async function HistoryPage() {
                     </button>
                   </form>
                 </div>
+
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-xs text-muted">
+                    ✏️ Upraviť skutočný kurz/stávku (ak sa líši od toho, čo appka ukázala)
+                  </summary>
+                  <form action={editTipAction} className="flex items-end gap-2 mt-2">
+                    <input type="hidden" name="id" value={tip.id} />
+                    <label className="text-xs">
+                      <span className="block text-muted mb-1">Skutočný kurz</span>
+                      <input
+                        type="number"
+                        name="odds"
+                        step="0.01"
+                        min="1.01"
+                        defaultValue={tip.odds}
+                        className="bg-bg border border-border rounded px-2 py-1 text-sm font-mono w-24"
+                      />
+                    </label>
+                    <label className="text-xs">
+                      <span className="block text-muted mb-1">Skutočná stávka (€)</span>
+                      <input
+                        type="number"
+                        name="stake"
+                        step="0.5"
+                        min="0.5"
+                        defaultValue={tip.stake}
+                        className="bg-bg border border-border rounded px-2 py-1 text-sm font-mono w-24"
+                      />
+                    </label>
+                    <button className="btn" type="submit">
+                      Uložiť
+                    </button>
+                  </form>
+                </details>
               </div>
             ))}
           </div>

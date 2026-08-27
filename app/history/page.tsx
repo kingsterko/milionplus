@@ -103,14 +103,31 @@ export default async function HistoryPage() {
         {openTips.length === 0 ? (
           <p className="text-sm text-muted">Žiadne otvorené tipy. Zaznamenaj tip v záložke Zápasy.</p>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {openTips.map((tip) => (
               <div key={tip.id} className="card">
-                <p className="text-sm">
-                  <span className="font-medium">{tip.match}</span> — {tip.outcome} ({tip.market}) @{" "}
-                  {tip.odds.toFixed(2)} · €{tip.stake.toFixed(2)}
-                </p>
-                <div className="flex gap-2 mt-2">
+                <div className="flex items-start justify-between gap-3 mb-1">
+                  <p className="font-medium text-sm">{tip.match}</p>
+                  <span className="badge badge-muted shrink-0">{tip.market}</span>
+                </div>
+                <p className="text-xs text-muted mb-3">{tip.outcome}</p>
+
+                <div className="flex items-center gap-4 mb-3 font-mono text-sm">
+                  <div>
+                    <span className="text-[10px] uppercase tracking-wide text-muted block">Kurz</span>
+                    {tip.odds.toFixed(2)}
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase tracking-wide text-muted block">Stávka</span>
+                    €{tip.stake.toFixed(2)}
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase tracking-wide text-muted block">Možná výhra</span>
+                    <span className="text-green">€{(tip.stake * tip.odds).toFixed(2)}</span>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2 mb-1">
                   <form action={settleTipAction}>
                     <input type="hidden" name="id" value={tip.id} />
                     <input type="hidden" name="won" value="true" />
@@ -138,38 +155,47 @@ export default async function HistoryPage() {
                   </form>
                 </div>
 
-                <details className="mt-2">
-                  <summary className="cursor-pointer text-xs text-muted">
-                    ✏️ Upraviť skutočný kurz/stávku (ak sa líši od toho, čo appka ukázala)
+                <details className="group/edit">
+                  <summary
+                    className="btn inline-flex items-center list-none [&::-webkit-details-marker]:hidden cursor-pointer mt-1"
+                    style={{ borderColor: "#8A908866", color: "#8A9088" }}
+                  >
+                    ✏️ Upraviť skutočný kurz/stávku
                   </summary>
-                  <form action={editTipAction} className="flex items-end gap-2 mt-2">
-                    <input type="hidden" name="id" value={tip.id} />
-                    <label className="text-xs">
-                      <span className="block text-muted mb-1">Skutočný kurz</span>
-                      <input
-                        type="number"
-                        name="odds"
-                        step="0.01"
-                        min="1.01"
-                        defaultValue={tip.odds}
-                        className="bg-bg border border-border rounded px-2 py-1 text-sm font-mono w-24"
-                      />
-                    </label>
-                    <label className="text-xs">
-                      <span className="block text-muted mb-1">Skutočná stávka (€)</span>
-                      <input
-                        type="number"
-                        name="stake"
-                        step="0.5"
-                        min="0.5"
-                        defaultValue={tip.stake}
-                        className="bg-bg border border-border rounded px-2 py-1 text-sm font-mono w-24"
-                      />
-                    </label>
-                    <button className="btn" type="submit">
-                      Uložiť
-                    </button>
-                  </form>
+                  <div className="mt-3 p-3 rounded border border-border bg-bg/50">
+                    <p className="text-[11px] text-muted mb-2">
+                      Ak sa reálny kurz alebo suma u bookmakera líšili od toho, čo appka pôvodne
+                      ukázala, uprav to tu — bank sa pri vysporiadaní prepočíta podľa týchto hodnôt.
+                    </p>
+                    <form action={editTipAction} className="grid grid-cols-2 gap-3">
+                      <input type="hidden" name="id" value={tip.id} />
+                      <label className="text-xs">
+                        <span className="block text-muted mb-1">Skutočný kurz</span>
+                        <input
+                          type="number"
+                          name="odds"
+                          step="0.01"
+                          min="1.01"
+                          defaultValue={tip.odds}
+                          className="w-full bg-bg border border-border rounded px-2 py-1.5 text-sm font-mono focus:outline-none focus:border-green"
+                        />
+                      </label>
+                      <label className="text-xs">
+                        <span className="block text-muted mb-1">Skutočná stávka (€)</span>
+                        <input
+                          type="number"
+                          name="stake"
+                          step="0.01"
+                          min="0.01"
+                          defaultValue={tip.stake}
+                          className="w-full bg-bg border border-border rounded px-2 py-1.5 text-sm font-mono focus:outline-none focus:border-green"
+                        />
+                      </label>
+                      <button className="btn-primary col-span-2" type="submit">
+                        💾 Uložiť zmenu
+                      </button>
+                    </form>
+                  </div>
                 </details>
               </div>
             ))}

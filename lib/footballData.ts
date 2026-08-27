@@ -30,16 +30,163 @@ interface VenueMatch {
 
 export type MatchIndex = Record<string, { home: VenueMatch[]; away: VenueMatch[] }>;
 
+/**
+ * Kazdy riadok = viacero znamych variantov nazvu (bookmaker styl aj oficialny
+ * styl football-data.org), vsetky namapovane na jeden spolocny kanonicky kod.
+ * Nezalezi teda, ktora strana (Odds API / football-data.org) pouzije ktory
+ * variant - obe sa nakoniec zidu na tom istom kode.
+ *
+ * Zoznam NIE JE vycerpavajuci a niektore mena mozu byt tymto konkretnym
+ * datumom uz neaktualne (postupy/zostupy medzi ligami). Ak narazis na dalsi
+ * nespojeny tim (a viac ako tento zoznam), napis mi presny nazov a pridame ho.
+ */
+const NAME_VARIANTS: Record<string, string> = {
+  // La Liga
+  "athletic bilbao": "athletic-bilbao",
+  "athletic club": "athletic-bilbao",
+  "athletic club bilbao": "athletic-bilbao",
+  "celta vigo": "celta-vigo",
+  "celta de vigo": "celta-vigo",
+  "rc celta de vigo": "celta-vigo",
+  "rc celta": "celta-vigo",
+  "ca osasuna": "osasuna",
+  "club atletico osasuna": "osasuna",
+  "club atletico de osasuna": "osasuna",
+  "osasuna": "osasuna",
+  "real racing club de santander": "racing-santander",
+  "racing de santander": "racing-santander",
+  "racing santander": "racing-santander",
+  "real racing club": "racing-santander",
+  "atletico madrid": "atletico-madrid",
+  "atletico de madrid": "atletico-madrid",
+  "club atletico de madrid": "atletico-madrid",
+  "malaga": "malaga",
+  "malaga cf": "malaga",
+  "deportivo la coruna": "deportivo-coruna",
+  "deportivo de la coruna": "deportivo-coruna",
+  "rc deportivo la coruna": "deportivo-coruna",
+  "rc deportivo": "deportivo-coruna",
+  "real betis": "real-betis",
+  "real betis balompie": "real-betis",
+  "rayo vallecano": "rayo-vallecano",
+  "rayo vallecano de madrid": "rayo-vallecano",
+
+  // Premier League
+  "brighton and hove albion": "brighton",
+  "brighton & hove albion": "brighton",
+  "brighton hove albion": "brighton",
+  "wolves": "wolverhampton",
+  "wolverhampton wanderers": "wolverhampton",
+  "spurs": "tottenham",
+  "tottenham hotspur": "tottenham",
+  "man united": "man-utd",
+  "man utd": "man-utd",
+  "manchester united": "man-utd",
+  "man city": "man-city",
+  "manchester city": "man-city",
+  "newcastle": "newcastle",
+  "newcastle united": "newcastle",
+
+  // Bundesliga
+  "bayern munich": "bayern",
+  "bayern munchen": "bayern",
+  "fc bayern munchen": "bayern",
+  "1. fc koln": "koln",
+  "1 fc koln": "koln",
+  "fc koln": "koln",
+  "koln": "koln",
+  "tsg hoffenheim": "hoffenheim",
+  "tsg 1899 hoffenheim": "hoffenheim",
+  "hoffenheim": "hoffenheim",
+  "bayer leverkusen": "leverkusen",
+  "bayer 04 leverkusen": "leverkusen",
+  "rb leipzig": "leipzig",
+  "rasenballsport leipzig": "leipzig",
+  "borussia monchengladbach": "gladbach",
+  "vfl borussia monchengladbach": "gladbach",
+  "fsv mainz 05": "mainz",
+  "1. fsv mainz 05": "mainz",
+  "mainz 05": "mainz",
+  "sc paderborn": "paderborn",
+  "sc paderborn 07": "paderborn",
+  "augsburg": "augsburg",
+  "fc augsburg": "augsburg",
+  "fc schalke 04": "schalke",
+  "schalke 04": "schalke",
+  "elversberg": "elversberg",
+  "sv elversberg": "elversberg",
+
+  // Serie A
+  "ac milan": "milan",
+  "milan": "milan",
+  "inter milan": "inter",
+  "internazionale": "inter",
+  "internazionale milano": "inter",
+  "fc internazionale milano": "inter",
+  "venezia": "venezia",
+  "venezia fc": "venezia",
+  "fiorentina": "fiorentina",
+  "acf fiorentina": "fiorentina",
+  "frosinone": "frosinone",
+  "frosinone calcio": "frosinone",
+  "monza": "monza",
+  "ac monza": "monza",
+  "udinese": "udinese",
+  "udinese calcio": "udinese",
+  "cagliari": "cagliari",
+  "cagliari calcio": "cagliari",
+
+  // Ligue 1
+  "paris saint germain": "psg",
+  "paris saint-germain": "psg",
+  "strasbourg": "strasbourg",
+  "rc strasbourg alsace": "strasbourg",
+  "rc lens": "lens",
+  "racing club de lens": "lens",
+  "lens": "lens",
+  "lorient": "lorient",
+  "fc lorient": "lorient",
+  "troyes": "troyes",
+  "estac troyes": "troyes",
+  "rennes": "rennes",
+  "stade rennais": "rennes",
+  "le mans fc": "le-mans",
+  "le mans": "le-mans",
+};
+
+// Bezne "vypln" slova v nazvoch klubov, ktore sa preskocia pri fuzzy
+// (token-based) porovnavani ako posledny zachranny pokus. NEOBSAHUJE slova
+// ako "real", "athletic", "atletico", "united", "city" - tie su casto
+// jedinou vecou, co odlisi dva rozdielne kluby v tej istej lige (napr. Real
+// Madrid vs Real Sociedad), takze ich vynechanie by mohlo sposobit false match.
+const FUZZY_STOPWORDS = new Set([
+  "fc", "cf", "afc", "ac", "sc", "sd", "ud", "cd", "rc", "ca", "ss", "ssc", "as",
+  "de", "la", "le", "les", "and", "the", "club", "calcio", "football",
+]);
+
+function stripDiacritics(s: string): string {
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
 function normalizeTeamName(name: string): string {
-  let n = name.toLowerCase().trim();
+  let n = stripDiacritics(name.toLowerCase().trim());
   for (const suffix of [" fc", " afc", " football club", " f.c."]) {
     if (n.endsWith(suffix)) n = n.slice(0, -suffix.length);
   }
-  return n.trim();
+  n = n.trim();
+  return NAME_VARIANTS[n] ?? n;
+}
+
+/** Vrati "jadrove" slova nazvu (bez cisel a bez bezneho vyplnu) - posledny zachranny pokus pri parovani. */
+function coreTokens(normalized: string): string[] {
+  return normalized
+    .split(/[\s.-]+/)
+    .filter((t) => t.length >= 4 && !FUZZY_STOPWORDS.has(t) && !/^\d+$/.test(t));
 }
 
 function matchTeam(target: string, available: string[]): string | null {
   const norm = normalizeTeamName(target);
+
   for (const name of available) {
     if (normalizeTeamName(name) === norm) return name;
   }
@@ -47,6 +194,16 @@ function matchTeam(target: string, available: string[]): string | null {
     const n = normalizeTeamName(name);
     if (norm.includes(n) || n.includes(norm)) return name;
   }
+
+  // Posledny zachranny pokus: zhoda aspon jedneho dost dlheho "jadroveho" slova.
+  const targetTokens = new Set(coreTokens(norm));
+  if (targetTokens.size > 0) {
+    for (const name of available) {
+      const nTokens = coreTokens(normalizeTeamName(name));
+      if (nTokens.some((t) => targetTokens.has(t))) return name;
+    }
+  }
+
   return null;
 }
 

@@ -1,5 +1,6 @@
 import { getCurrentBank, getBankrollHistory, listOpenTips, listAllTips, getCalibrationBuckets } from "@/lib/db";
-import { settleTipAction, updateBankAction, deleteTipAction, editTipAction } from "@/lib/actions";
+import { settleTipAction, updateBankAction, deleteTipAction } from "@/lib/actions";
+import EditTipPanel from "@/components/EditTipPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -155,48 +156,7 @@ export default async function HistoryPage() {
                   </form>
                 </div>
 
-                <details className="group/edit">
-                  <summary
-                    className="btn inline-flex items-center list-none [&::-webkit-details-marker]:hidden cursor-pointer mt-1"
-                    style={{ borderColor: "#8A908866", color: "#8A9088" }}
-                  >
-                    ✏️ Upraviť skutočný kurz/stávku
-                  </summary>
-                  <div className="mt-3 p-3 rounded border border-border bg-bg/50">
-                    <p className="text-[11px] text-muted mb-2">
-                      Ak sa reálny kurz alebo suma u bookmakera líšili od toho, čo appka pôvodne
-                      ukázala, uprav to tu — bank sa pri vysporiadaní prepočíta podľa týchto hodnôt.
-                    </p>
-                    <form action={editTipAction} className="grid grid-cols-2 gap-3">
-                      <input type="hidden" name="id" value={tip.id} />
-                      <label className="text-xs">
-                        <span className="block text-muted mb-1">Skutočný kurz</span>
-                        <input
-                          type="number"
-                          name="odds"
-                          step="0.01"
-                          min="1.01"
-                          defaultValue={tip.odds}
-                          className="w-full bg-bg border border-border rounded px-2 py-1.5 text-sm font-mono focus:outline-none focus:border-green"
-                        />
-                      </label>
-                      <label className="text-xs">
-                        <span className="block text-muted mb-1">Skutočná stávka (€)</span>
-                        <input
-                          type="number"
-                          name="stake"
-                          step="0.01"
-                          min="0.01"
-                          defaultValue={tip.stake}
-                          className="w-full bg-bg border border-border rounded px-2 py-1.5 text-sm font-mono focus:outline-none focus:border-green"
-                        />
-                      </label>
-                      <button className="btn-primary col-span-2" type="submit">
-                        💾 Uložiť zmenu
-                      </button>
-                    </form>
-                  </div>
-                </details>
+                <EditTipPanel tipId={tip.id} odds={tip.odds} stake={tip.stake} />
               </div>
             ))}
           </div>

@@ -15,6 +15,7 @@ export async function recordTipAction(formData: FormData) {
 
   await db.logTip(match, market, outcome, bookmaker, odds, edge, predictedProb, stake);
   revalidatePath("/");
+  revalidatePath("/history");
 }
 
 export async function settleTipAction(formData: FormData) {

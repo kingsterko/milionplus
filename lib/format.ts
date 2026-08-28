@@ -36,6 +36,10 @@ export function formatDayHeading(iso: string): string {
   return `${day} ${date.getDate()}.${date.getMonth() + 1}.`;
 }
 
+export function isToday(iso: string): boolean {
+  return isSameDay(new Date(iso), new Date());
+}
+
 export function dayKey(iso: string): string {
   const date = new Date(iso);
   return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;

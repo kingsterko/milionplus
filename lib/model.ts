@@ -101,6 +101,7 @@ export function recommendStake(
 
 export interface ValueTip {
   match: string;
+  league?: string;
   outcome: string;
   bookmaker: string;
   odds: number;

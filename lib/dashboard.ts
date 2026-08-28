@@ -145,7 +145,7 @@ async function fetchAndAnalyzeLeague(
 
     if (m.odds.length >= 3) {
       const tips = analyzeMatch1x2(m.home, m.away, m.odds, m.bookmakers, bank, ownProbs);
-      valueTips.push(...tips);
+      valueTips.push(...tips.map((t) => ({ ...t, league: league.label })));
 
       const { perOutcome, market } = perOutcomeAnalysis(ownProbs, m.odds, m.bookmakers);
       const conf = confidencePick(perOutcome, minConfidence);
@@ -179,7 +179,7 @@ async function fetchAndAnalyzeLeague(
         TOTALS_LABEL,
         ownTotals
       );
-      valueTips.push(...tTips);
+      valueTips.push(...tTips.map((t) => ({ ...t, league: league.label })));
 
       const { perOutcome: tPerOutcome } = perOutcomeAnalysisTotals(ownTotals, m.totalsOdds, m.totalsBookmakers, ["over", "under"]);
       const tConf = confidencePick(tPerOutcome, minConfidence, TOTALS_LABEL);
@@ -271,4 +271,74 @@ export async function getMixTicketData(minConfidence: number = DEFAULT_MIN_CONFI
   }
 
   return { bank, confidenceEntries, totalsConfidenceEntries, kickoffByMatch, leagueErrors };
+}
+
+export interface TodayDashboardData {
+  bank: number;
+  matches: OddsMatch[];
+  valueTips: ValueTip[];
+  confidenceEntries: ConfidenceEntry[];
+  totalsConfidenceEntries: TotalsConfidenceEntry[];
+  kickoffByMatch: Record<string, string>;
+  leagueErrors: { league: string; message: string }[];
+}
+
+/**
+ * Prejde VSETKY ligy postupne a poskladá vsetko (zapasy, value tipy, iste
+ * tipy), co sa hra DNES, naprieč nimi do jedneho spolocneho pohladu.
+ */
+export async function getTodayDashboardData(minConfidence: number = DEFAULT_MIN_CONFIDENCE): Promise<TodayDashboardData> {
+  const oddsApiKey = process.env.ODDS_API_KEY;
+  const footballApiKey = process.env.FOOTBALL_DATA_API_KEY;
+
+  if (!oddsApiKey) {
+    throw new Error("Chýba ODDS_API_KEY v premenných prostredia (nastav vo Vercel -> Settings -> Environment Variables).");
+  }
+
+  let bank: number;
+  try {
+    bank = await getCurrentBank();
+  } catch (e: any) {
+    throw new Error(`[Supabase] ${e?.message || JSON.stringify(e)}`);
+  }
+
+  const matches: OddsMatch[] = [];
+  const valueTips: ValueTip[] = [];
+  const confidenceEntries: ConfidenceEntry[] = [];
+  const totalsConfidenceEntries: TotalsConfidenceEntry[] = [];
+  const kickoffByMatch: Record<string, string> = {};
+  const leagueErrors: { league: string; message: string }[] = [];
+
+  const isTodayIso = (iso: string) => {
+    const d = new Date(iso);
+    const now = new Date();
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+  };
+  const baseMatchLabel = (label: string) => label.replace(/ \(Nad\/Pod\)$/, "");
+
+  for (const league of LEAGUES) {
+    try {
+      const result = await fetchAndAnalyzeLeague(league, oddsApiKey, footballApiKey, bank, minConfidence);
+
+      const todayMatches = result.matches.filter((m) => isTodayIso(m.commenceTime));
+      if (todayMatches.length === 0) {
+        await new Promise((r) => setTimeout(r, MIX_LEAGUE_THROTTLE_MS));
+        continue;
+      }
+      const todayLabels = new Set(todayMatches.map((m) => `${m.home} vs ${m.away}`));
+
+      matches.push(...todayMatches);
+      valueTips.push(...result.valueTips.filter((t) => todayLabels.has(baseMatchLabel(t.match))));
+      confidenceEntries.push(...result.confidenceEntries.filter((e) => todayLabels.has(e.match)));
+      totalsConfidenceEntries.push(...result.totalsConfidenceEntries.filter((e) => todayLabels.has(e.match)));
+      Object.assign(kickoffByMatch, result.kickoffByMatch);
+    } catch (e: any) {
+      leagueErrors.push({ league: league.label, message: e?.message || String(e) });
+    }
+    await new Promise((r) => setTimeout(r, MIX_LEAGUE_THROTTLE_MS));
+  }
+
+  matches.sort((a, b) => (a.commenceTime < b.commenceTime ? -1 : a.commenceTime > b.commenceTime ? 1 : 0));
+
+  return { bank, matches, valueTips, confidenceEntries, totalsConfidenceEntries, kickoffByMatch, leagueErrors };
 }

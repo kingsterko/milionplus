@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { getDashboardData, getMixTicketData } from "@/lib/dashboard";
+import { getDashboardData, getMixTicketData, getTodayDashboardData } from "@/lib/dashboard";
 import { recordTipAction, refreshAction } from "@/lib/actions";
 import { LEAGUES, DEFAULT_LEAGUE_ID, getLeague } from "@/lib/leagues";
-import { formatKickoff, formatDayHeading, dayKey } from "@/lib/format";
+import { formatKickoff, formatDayHeading, dayKey, isToday } from "@/lib/format";
 import { listOpenTips } from "@/lib/db";
 import { buildSafestTicket, LEG_OPTIONS } from "@/lib/ticket";
 import TicketTabs from "@/components/TicketTabs";
@@ -12,10 +12,17 @@ export const dynamic = "force-dynamic";
 const CONFIDENCE_OPTIONS = [50, 55, 60, 65, 70, 75, 80];
 const DEFAULT_MIN_CONFIDENCE = 55;
 const MIX_ID = "mix";
+const TODAY_ID = "today";
 
 function LeagueSwitcher({ activeId }: { activeId: string }) {
   return (
     <div className="flex gap-2 flex-wrap">
+      <Link
+        href={`/?league=${TODAY_ID}`}
+        className={`badge ${activeId === TODAY_ID ? "badge-green" : "badge-muted"} hover:border-green transition-colors`}
+      >
+        📅 DNES
+      </Link>
       {LEAGUES.map((l) => (
         <Link
           key={l.id}
@@ -61,6 +68,152 @@ export default async function MatchesPage({
   const minConfidence = CONFIDENCE_OPTIONS.includes(Number(searchParams.minConfidence))
     ? Number(searchParams.minConfidence)
     : DEFAULT_MIN_CONFIDENCE;
+
+  if (leagueId === TODAY_ID) {
+    let todayData;
+    try {
+      todayData = await getTodayDashboardData(minConfidence);
+    } catch (e: unknown) {
+      const message =
+        (e as any)?.message || (typeof e === "object" ? JSON.stringify(e, null, 2) : String(e));
+      return (
+        <div className="space-y-4 mt-4">
+          <LeagueSwitcher activeId={TODAY_ID} />
+          <div className="card">
+            <p className="text-red font-medium">Chyba pri načítaní dát</p>
+            <pre className="text-xs text-muted mt-2 whitespace-pre-wrap break-words">{message}</pre>
+          </div>
+        </div>
+      );
+    }
+
+    const { bank, matches: todayMatches, valueTips, confidenceEntries, totalsConfidenceEntries, leagueErrors } = todayData;
+    const openTips = await listOpenTips();
+    const openKeys = new Set(openTips.map((t) => `${t.match}|${t.market}|${t.outcome}`));
+    const isRecorded = (match: string, market: string, outcome: string) => openKeys.has(`${match}|${market}|${outcome}`);
+
+    return (
+      <div className="space-y-8 mt-4">
+        <LeagueSwitcher activeId={TODAY_ID} />
+        <ConfidenceSwitcher leagueId={TODAY_ID} active={minConfidence} />
+
+        <p className="text-xs text-muted">
+          📅 Dnes hrá sa {todayMatches.length} zápasov naprieč {LEAGUES.length} ligami · bank €{bank.toFixed(2)}
+        </p>
+
+        {leagueErrors.length > 0 && (
+          <details className="card">
+            <summary className="cursor-pointer text-sm font-medium">
+              ⚠️ {leagueErrors.length} lig(a) sa nepodarilo načítať
+            </summary>
+            <ul className="mt-2 space-y-1">
+              {leagueErrors.map((e, i) => (
+                <li key={i} className="text-xs text-muted">
+                  <span className="font-medium">{e.league}:</span> {e.message}
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+
+        {todayMatches.length === 0 ? (
+          <p className="text-sm text-muted">Dnes sa v žiadnej zo sledovaných líg nehrá.</p>
+        ) : (
+          <>
+            <section>
+              <h2 className="text-xl font-display font-semibold">💡 Value tipy dnes</h2>
+              {valueTips.length === 0 ? (
+                <p className="text-sm text-muted mt-2">Žiadny dnešný zápas neprešiel prahom pre value tip.</p>
+              ) : (
+                <div className="space-y-3 mt-3">
+                  {valueTips.map((t, i) => (
+                    <div key={i} className="card">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-medium">{t.match}</p>
+                          <p className="text-xs text-muted">
+                            {t.league && <span className="text-green">{t.league} · </span>}
+                            {t.outcome} @ {t.bookmaker} · kurz {t.odds.toFixed(2)}
+                          </p>
+                        </div>
+                        <span className="badge badge-green shrink-0">+{t.edge.toFixed(1)}%</span>
+                      </div>
+                      <p className="text-sm mt-2">
+                        Odporúčaná stávka: <span className="font-mono text-green">€{t.stake.toFixed(2)}</span>
+                      </p>
+                      {isRecorded(t.match, "value", t.outcome) ? (
+                        <span className="text-xs text-green">✅ Už zaznamenané</span>
+                      ) : (
+                        <form action={recordTipAction} className="mt-2">
+                          <input type="hidden" name="match" value={t.match} />
+                          <input type="hidden" name="market" value="value" />
+                          <input type="hidden" name="outcome" value={t.outcome} />
+                          <input type="hidden" name="bookmaker" value={t.bookmaker} />
+                          <input type="hidden" name="odds" value={t.odds} />
+                          <input type="hidden" name="edge" value={t.edge} />
+                          <input type="hidden" name="predictedProb" value={t.consensusProb} />
+                          <input type="hidden" name="stake" value={t.stake} />
+                          <button className="btn" type="submit">
+                            📝 Zaznamenať
+                          </button>
+                        </form>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section>
+              <h2 className="text-xl font-display font-semibold">🎯 Isté tipy dnes</h2>
+              {confidenceEntries.length === 0 && totalsConfidenceEntries.length === 0 ? (
+                <p className="text-sm text-muted mt-2">Žiadny dnešný zápas nemá dostatočne istého favorita.</p>
+              ) : (
+                <div className="space-y-3 mt-3">
+                  {confidenceEntries.map((entry, i) => (
+                    <div key={i} className="card">
+                      <p className="font-medium">
+                        {entry.match}
+                        {entry.league && <span className="text-muted font-normal"> · {entry.league}</span>}
+                      </p>
+                      {entry.confidence ? (
+                        <>
+                          <p className="text-sm mt-1">
+                            <span className="font-medium">{entry.confidence.outcome}</span> @{" "}
+                            {entry.confidence.odds.toFixed(2)} ({entry.confidence.bookmaker})
+                          </p>
+                          <p className="text-xs text-muted">Šanca podľa modelu: {entry.confidence.modelProb.toFixed(0)}%</p>
+                          {isRecorded(entry.match, "istota", entry.confidence.outcome) ? (
+                            <span className="text-xs text-green">✅ Už zaznamenané</span>
+                          ) : (
+                            <form action={recordTipAction} className="mt-2">
+                              <input type="hidden" name="match" value={entry.match} />
+                              <input type="hidden" name="market" value="istota" />
+                              <input type="hidden" name="outcome" value={entry.confidence.outcome} />
+                              <input type="hidden" name="bookmaker" value={entry.confidence.bookmaker} />
+                              <input type="hidden" name="odds" value={entry.confidence.odds} />
+                              <input type="hidden" name="edge" value={entry.confidence.edge} />
+                              <input type="hidden" name="predictedProb" value={entry.confidence.modelProb} />
+                              <input type="hidden" name="stake" value={Math.max(Math.round(bank * 0.02 * 100) / 100, 0.5)} />
+                              <button className="btn" type="submit">
+                                📝 Zaznamenať
+                              </button>
+                            </form>
+                          )}
+                        </>
+                      ) : (
+                        <p className="text-xs text-muted mt-1">Žiadny favorit nedosahuje minimálnu istotu.</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </>
+        )}
+      </div>
+    );
+  }
 
   if (leagueId === MIX_ID) {
     let mixData;
@@ -164,6 +317,12 @@ export default async function MatchesPage({
     return iso ? formatKickoff(iso) : null;
   }
 
+  function isTodayMatch(matchLabel: string): boolean {
+    const base = matchLabel.replace(/ \(Nad\/Pod\)$/, "");
+    const iso = kickoffByMatch[base];
+    return iso ? isToday(iso) : false;
+  }
+
   const ticketsByLegs: Record<number, ReturnType<typeof buildSafestTicket>> = {};
   for (const n of LEG_OPTIONS) {
     ticketsByLegs[n] = buildSafestTicket(confidenceEntries, totalsConfidenceEntries, n, bank);
@@ -227,7 +386,9 @@ export default async function MatchesPage({
                         {t.outcome} @ {t.bookmaker} · kurz {t.odds.toFixed(2)}
                       </p>
                       {kickoffFor(t.match) && (
-                        <p className="text-[10px] font-mono text-muted mt-0.5">🕐 {kickoffFor(t.match)}</p>
+                        <p className={`text-[10px] font-mono mt-0.5 ${isTodayMatch(t.match) ? "text-green font-semibold" : "text-muted"}`}>
+                          🕐 {kickoffFor(t.match)}
+                        </p>
                       )}
                     </div>
                     <span className="badge badge-green shrink-0">
@@ -335,7 +496,9 @@ export default async function MatchesPage({
                 <div className="flex items-center justify-between mb-2">
                   <p className="font-medium">{entry.match}</p>
                   {kickoffFor(entry.match) && (
-                    <span className="text-[10px] font-mono text-muted">🕐 {kickoffFor(entry.match)}</span>
+                    <span className={`text-[10px] font-mono ${isTodayMatch(entry.match) ? "text-green font-semibold" : "text-muted"}`}>
+                      🕐 {kickoffFor(entry.match)}
+                    </span>
                   )}
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -406,7 +569,7 @@ export default async function MatchesPage({
                         {entry.confidence.odds.toFixed(2)} ({entry.confidence.bookmaker})
                       </p>
                       {kickoffFor(entry.match) && (
-                        <span className="text-[10px] font-mono text-muted shrink-0 ml-2">
+                        <span className={`text-[10px] font-mono shrink-0 ml-2 ${isTodayMatch(entry.match) ? "text-green font-semibold" : "text-muted"}`}>
                           🕐 {kickoffFor(entry.match)}
                         </span>
                       )}
@@ -453,9 +616,13 @@ export default async function MatchesPage({
             }, {})
           ).map(([key, dayMatches]) => (
             <div key={key}>
-              <p className="text-[10px] uppercase tracking-widest text-green font-mono mb-2">
-                {formatDayHeading(dayMatches[0].commenceTime)}
-              </p>
+              {isToday(dayMatches[0].commenceTime) ? (
+                <span className="badge badge-green mb-2 inline-block">🔴 {formatDayHeading(dayMatches[0].commenceTime)}</span>
+              ) : (
+                <p className="text-[10px] uppercase tracking-widest text-muted font-mono mb-2">
+                  {formatDayHeading(dayMatches[0].commenceTime)}
+                </p>
+              )}
               <div className="space-y-2">
                 {dayMatches.map((m, i) => (
                   <details key={i} className="card">

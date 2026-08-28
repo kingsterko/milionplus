@@ -13,6 +13,12 @@ body {
   @apply bg-surface border border-border rounded-md p-4;
 }
 
+.card-today {
+  @apply border rounded-md p-4;
+  background-color: #1a1f1c;
+  border-color: #34403a;
+}
+
 .btn {
   @apply font-mono text-xs uppercase tracking-wide rounded border px-3 py-1.5 transition-colors;
   border-color: #3dff7a66;

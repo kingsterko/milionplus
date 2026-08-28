@@ -378,7 +378,7 @@ export default async function MatchesPage({
         ) : (
           <div className="space-y-3">
             {valueTips.map((t, i) => (
-                <div key={i} className="card">
+                <div key={i} className={isTodayMatch(t.match) ? "card-today" : "card"}>
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="font-medium">{t.match}</p>
@@ -386,9 +386,7 @@ export default async function MatchesPage({
                         {t.outcome} @ {t.bookmaker} · kurz {t.odds.toFixed(2)}
                       </p>
                       {kickoffFor(t.match) && (
-                        <p className={`text-[10px] font-mono mt-0.5 ${isTodayMatch(t.match) ? "text-green font-semibold" : "text-muted"}`}>
-                          🕐 {kickoffFor(t.match)}
-                        </p>
+                        <p className="text-[10px] font-mono mt-0.5 text-muted">🕐 {kickoffFor(t.match)}</p>
                       )}
                     </div>
                     <span className="badge badge-green shrink-0">
@@ -492,13 +490,11 @@ export default async function MatchesPage({
         ) : (
           <div className="space-y-3">
             {confidenceEntries.map((entry, i) => (
-              <div key={i} className="card">
+              <div key={i} className={isTodayMatch(entry.match) ? "card-today" : "card"}>
                 <div className="flex items-center justify-between mb-2">
                   <p className="font-medium">{entry.match}</p>
                   {kickoffFor(entry.match) && (
-                    <span className={`text-[10px] font-mono ${isTodayMatch(entry.match) ? "text-green font-semibold" : "text-muted"}`}>
-                      🕐 {kickoffFor(entry.match)}
-                    </span>
+                    <span className="text-[10px] font-mono text-muted">🕐 {kickoffFor(entry.match)}</span>
                   )}
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -562,14 +558,14 @@ export default async function MatchesPage({
               <div>
                 <p className="text-sm font-medium mt-4 mb-2">⚽ Nad/Pod 2.5 gólu</p>
                 {totalsConfidenceEntries.map((entry, i) => (
-                  <div key={i} className="card mb-2">
+                  <div key={i} className={isTodayMatch(entry.match) ? "card-today mb-2" : "card mb-2"}>
                     <div className="flex items-center justify-between">
                       <p className="text-sm">
                         <span className="font-medium">{entry.match}</span>: {entry.confidence.outcome} @{" "}
                         {entry.confidence.odds.toFixed(2)} ({entry.confidence.bookmaker})
                       </p>
                       {kickoffFor(entry.match) && (
-                        <span className={`text-[10px] font-mono shrink-0 ml-2 ${isTodayMatch(entry.match) ? "text-green font-semibold" : "text-muted"}`}>
+                        <span className="text-[10px] font-mono shrink-0 ml-2 text-muted">
                           🕐 {kickoffFor(entry.match)}
                         </span>
                       )}
@@ -625,7 +621,7 @@ export default async function MatchesPage({
               )}
               <div className="space-y-2">
                 {dayMatches.map((m, i) => (
-                  <details key={i} className="card">
+                  <details key={i} className={isToday(m.commenceTime) ? "card-today" : "card"}>
                     <summary className="cursor-pointer text-sm font-medium flex items-center justify-between gap-2">
                       <span>
                         {m.home} vs {m.away}

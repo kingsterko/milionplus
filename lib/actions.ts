@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import * as db from "./db";
 
 export async function recordTipAction(formData: FormData) {
@@ -59,5 +59,6 @@ export async function updateBankAction(formData: FormData) {
 }
 
 export async function refreshAction() {
+  revalidateTag("odds"); // vynuti cerstve kurze - beznou navstevou sa credity setria cachovanim
   revalidatePath("/");
 }

@@ -1,5 +1,5 @@
 import { fetchLeagueOdds, OddsMatch } from "./oddsClient";
-import { fetchSeasonMatches, buildMatchIndex, weightedStatsForTeam, FootballDataError } from "./footballData";
+import { fetchSeasonMatches, buildMatchIndex, weightedStatsForTeam, computeLeagueAverage, FootballDataError } from "./footballData";
 import { predictMatch } from "./poisson";
 import {
   analyzeMatch1x2,
@@ -107,6 +107,7 @@ async function fetchAndAnalyzeLeague(
 
   const useOwnModel = Boolean(footballApiKey) && Boolean(league.footballDataCode);
   let matchIndex: ReturnType<typeof buildMatchIndex> = {};
+  let leagueAvg = { scored_home: 1.5, conceded_home: 1.1, scored_away: 1.1, conceded_away: 1.5 };
   let modelError: string | null = null;
 
   if (useOwnModel && footballApiKey && league.footballDataCode) {
@@ -115,6 +116,7 @@ async function fetchAndAnalyzeLeague(
       const current = await fetchSeasonMatches(footballApiKey, season, league.footballDataCode);
       const previous = await fetchSeasonMatches(footballApiKey, season - 1, league.footballDataCode);
       matchIndex = buildMatchIndex([...current, ...previous]);
+      leagueAvg = computeLeagueAverage(matchIndex);
     } catch (e) {
       modelError = e instanceof FootballDataError ? e.message : String(e);
     }
@@ -130,8 +132,8 @@ async function fetchAndAnalyzeLeague(
     let ownProbs: ReturnType<typeof predictMatch> | null = null;
 
     if (useOwnModel && Object.keys(matchIndex).length > 0) {
-      const homeStats = weightedStatsForTeam(matchIndex, m.home);
-      const awayStats = weightedStatsForTeam(matchIndex, m.away);
+      const homeStats = weightedStatsForTeam(matchIndex, m.home, leagueAvg);
+      const awayStats = weightedStatsForTeam(matchIndex, m.away, leagueAvg);
       if (homeStats && awayStats) {
         ownProbs = predictMatch(homeStats, awayStats);
       } else {

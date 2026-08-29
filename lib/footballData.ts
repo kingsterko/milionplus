@@ -258,9 +258,53 @@ function weightedAvg(matches: VenueMatch[], key: "scored" | "conceded", decay: n
   return sum / totalW;
 }
 
+// Pocet "virtualnych" zapasov na urovni priemeru ligy, ktore sa primiesaju
+// k odhadu tima. Pri malom vzorku (blizko MIN_MATCHES_PER_VENUE) to odhad
+// vyrazne stiahne k priemeru ligy; pri velkom vzorku (MAX_MATCHES_PER_VENUE)
+// ma priemer ligy uz len maly vplyv.
+const SHRINKAGE_STRENGTH = 3;
+
+export interface LeagueAverage {
+  scored_home: number;
+  conceded_home: number;
+  scored_away: number;
+  conceded_away: number;
+}
+
+/** Priemerne goly vsetkych timov v indexe - pouziva sa ako "kotva" pre shrinkage pri malom vzorku. */
+export function computeLeagueAverage(index: MatchIndex): LeagueAverage {
+  let sumScoredHome = 0, sumConcededHome = 0, countHome = 0;
+  let sumScoredAway = 0, sumConcededAway = 0, countAway = 0;
+
+  for (const team of Object.values(index)) {
+    for (const m of team.home) {
+      sumScoredHome += m.scored;
+      sumConcededHome += m.conceded;
+      countHome++;
+    }
+    for (const m of team.away) {
+      sumScoredAway += m.scored;
+      sumConcededAway += m.conceded;
+      countAway++;
+    }
+  }
+
+  return {
+    scored_home: countHome ? sumScoredHome / countHome : 1.5,
+    conceded_home: countHome ? sumConcededHome / countHome : 1.1,
+    scored_away: countAway ? sumScoredAway / countAway : 1.1,
+    conceded_away: countAway ? sumConcededAway / countAway : 1.5,
+  };
+}
+
+function shrinkToward(raw: number, leagueAvg: number, sampleSize: number, strength: number): number {
+  return (raw * sampleSize + leagueAvg * strength) / (sampleSize + strength);
+}
+
 export function weightedStatsForTeam(
   index: MatchIndex,
   teamName: string,
+  leagueAvg: LeagueAverage,
   maxMatches: number = MAX_MATCHES_PER_VENUE,
   decay: number = RECENCY_DECAY,
   minMatches: number = MIN_MATCHES_PER_VENUE
@@ -272,11 +316,16 @@ export function weightedStatsForTeam(
   const away = index[match].away.slice(0, maxMatches);
   if (home.length < minMatches || away.length < minMatches) return null;
 
+  const rawScoredHome = weightedAvg(home, "scored", decay);
+  const rawConcededHome = weightedAvg(home, "conceded", decay);
+  const rawScoredAway = weightedAvg(away, "scored", decay);
+  const rawConcededAway = weightedAvg(away, "conceded", decay);
+
   return {
-    scored_home: weightedAvg(home, "scored", decay),
-    conceded_home: weightedAvg(home, "conceded", decay),
-    scored_away: weightedAvg(away, "scored", decay),
-    conceded_away: weightedAvg(away, "conceded", decay),
+    scored_home: shrinkToward(rawScoredHome, leagueAvg.scored_home, home.length, SHRINKAGE_STRENGTH),
+    conceded_home: shrinkToward(rawConcededHome, leagueAvg.conceded_home, home.length, SHRINKAGE_STRENGTH),
+    scored_away: shrinkToward(rawScoredAway, leagueAvg.scored_away, away.length, SHRINKAGE_STRENGTH),
+    conceded_away: shrinkToward(rawConcededAway, leagueAvg.conceded_away, away.length, SHRINKAGE_STRENGTH),
     sample_home: home.length,
     sample_away: away.length,
   };

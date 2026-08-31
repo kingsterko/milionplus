@@ -1,4 +1,4 @@
-import { getCurrentBank, getBankrollHistory, listOpenTips, listAllTips, getCalibrationBuckets } from "@/lib/db";
+import { getCurrentBank, getBankrollHistory, listOpenTips, listAllTips, getPerformanceByMarket } from "@/lib/db";
 import { settleTipAction, updateBankAction, deleteTipAction } from "@/lib/actions";
 import EditTipPanel from "@/components/EditTipPanel";
 
@@ -10,7 +10,7 @@ export default async function HistoryPage() {
   const openTips = await listOpenTips();
   const allTips = await listAllTips();
   const settled = allTips.filter((t) => t.status === "settled");
-  const calibration = await getCalibrationBuckets();
+  const performance = await getPerformanceByMarket();
 
   const maxBank = Math.max(...bankHistory.map((b) => b.bank), bank, 1);
   const minBank = Math.min(...bankHistory.map((b) => b.bank), bank, 0);
@@ -57,46 +57,81 @@ export default async function HistoryPage() {
       </section>
 
       <section>
-        <h2 className="text-xl font-display font-semibold mb-1">📈 Presnosť modelu</h2>
+        <h2 className="text-xl font-display font-semibold mb-1">📈 Presnosť a výkonnosť podľa stratégie</h2>
         <p className="text-xs text-muted mb-3">
-          Porovnáva, čo model tvrdil (predikovaná %), s tým, čo sa reálne stalo (skutočná
-          úspešnosť) — len z už vysporiadaných tipov. Ak model funguje dobre, oba stĺpce by mali
-          byť blízko seba. Pásma s menej než 5 tipmi sú zatiaľ len orientačné — je to príliš
-          malá vzorka na vyvodzovanie záverov.
+          Value tipy, isté tipy a tikety majú úplne inú logiku — miešať ich dokopy by skrylo,
+          ktorá stratégia reálne funguje. ROI hovorí o skutočnom zisku/strate; kalibrácia (nižšie,
+          po rozkliknutí) o tom, či percentá, čo appka tvrdí, sedia s realitou.
         </p>
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs font-mono">
-            <thead>
-              <tr className="text-muted text-left">
-                <th className="pr-4 py-1">pásmo</th>
-                <th className="pr-4">počet tipov</th>
-                <th className="pr-4">priem. predikcia</th>
-                <th className="pr-4">skutočná úspešnosť</th>
-                <th>rozdiel</th>
-              </tr>
-            </thead>
-            <tbody>
-              {calibration.map((b) => {
-                const diff =
-                  b.avgPredicted != null && b.actualHitRate != null
-                    ? Math.round((b.actualHitRate - b.avgPredicted) * 10) / 10
-                    : null;
-                return (
-                  <tr key={b.label} className="border-t border-border">
-                    <td className="pr-4 py-1.5">{b.label}</td>
-                    <td className="pr-4">{b.count}</td>
-                    <td className="pr-4">{b.avgPredicted != null ? `${b.avgPredicted.toFixed(1)}%` : "—"}</td>
-                    <td className="pr-4">{b.actualHitRate != null ? `${b.actualHitRate.toFixed(1)}%` : "—"}</td>
-                    <td className={diff == null ? "" : diff >= 0 ? "text-green" : "text-red"}>
-                      {diff == null ? "—" : `${diff >= 0 ? "+" : ""}${diff.toFixed(1)}%`}
-                      {b.count > 0 && b.count < 5 && <span className="text-muted ml-1">(málo dát)</span>}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        {performance.length === 0 ? (
+          <p className="text-sm text-muted">Zatiaľ žiadne vysporiadané tipy na vyhodnotenie.</p>
+        ) : (
+          <div className="space-y-3">
+            {performance.map((p) => (
+              <div key={p.market} className="card">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="font-medium">{p.label}</p>
+                  <span className="text-xs text-muted">{p.totalCount} tipov</span>
+                </div>
+                <div className="grid grid-cols-3 gap-3 mb-1">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide text-muted">Úspešnosť</p>
+                    <p className="font-mono text-lg">{p.winRatePct?.toFixed(1) ?? "—"}%</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide text-muted">Zisk/strata</p>
+                    <p className={`font-mono text-lg ${p.totalProfit >= 0 ? "text-green" : "text-red"}`}>
+                      {p.totalProfit >= 0 ? "+" : ""}€{p.totalProfit.toFixed(2)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide text-muted">ROI</p>
+                    <p className={`font-mono text-lg ${(p.roiPct ?? 0) >= 0 ? "text-green" : "text-red"}`}>
+                      {p.roiPct != null ? `${p.roiPct >= 0 ? "+" : ""}${p.roiPct.toFixed(1)}%` : "—"}
+                    </p>
+                  </div>
+                </div>
+
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-xs text-muted">🔍 Kalibrácia podľa pásma istoty</summary>
+                  <div className="overflow-x-auto mt-2">
+                    <table className="w-full text-xs font-mono">
+                      <thead>
+                        <tr className="text-muted text-left">
+                          <th className="pr-4 py-1">pásmo</th>
+                          <th className="pr-4">počet</th>
+                          <th className="pr-4">priem. predikcia</th>
+                          <th className="pr-4">skutočná úspešnosť</th>
+                          <th>rozdiel</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {p.buckets.map((b) => {
+                          const diff =
+                            b.avgPredicted != null && b.actualHitRate != null
+                              ? Math.round((b.actualHitRate - b.avgPredicted) * 10) / 10
+                              : null;
+                          return (
+                            <tr key={b.label} className="border-t border-border">
+                              <td className="pr-4 py-1.5">{b.label}</td>
+                              <td className="pr-4">{b.count}</td>
+                              <td className="pr-4">{b.avgPredicted != null ? `${b.avgPredicted.toFixed(1)}%` : "—"}</td>
+                              <td className="pr-4">{b.actualHitRate != null ? `${b.actualHitRate.toFixed(1)}%` : "—"}</td>
+                              <td className={diff == null ? "" : diff >= 0 ? "text-green" : "text-red"}>
+                                {diff == null ? "—" : `${diff >= 0 ? "+" : ""}${diff.toFixed(1)}%`}
+                                {b.count > 0 && b.count < 5 && <span className="text-muted ml-1">(málo dát)</span>}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </details>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       <section>

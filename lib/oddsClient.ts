@@ -89,3 +89,44 @@ export async function fetchLeagueOdds(apiKey: string, sportKey: string, region =
   }
   return matches;
 }
+
+const SCORES_CACHE_SECONDS = 300; // 5 min zakladne cachovanie - manualne "Obnovit" tlacidlo obchadza cache cez tag "live"
+
+export interface LiveScore {
+  home: string;
+  away: string;
+  commenceTime: string;
+  completed: boolean;
+  homeScore: number | null;
+  awayScore: number | null;
+}
+
+/**
+ * Ziska aktualne skore zapasov danej ligy (posledny den+den dopredu, aby
+ * pokrylo aj prave rozbehnute zapasy). Samostatny, lacnejsi endpoint nez
+ * /odds (bez x2 za trhy) - viac v komentari v dashboard.ts.
+ */
+export async function fetchLeagueScores(apiKey: string, sportKey: string): Promise<LiveScore[]> {
+  const params = new URLSearchParams({ apiKey, daysFrom: "1", dateFormat: "iso" });
+  const url = `https://api.the-odds-api.com/v4/sports/${sportKey}/scores/?${params.toString()}`;
+
+  const resp = await fetch(url, { next: { revalidate: SCORES_CACHE_SECONDS, tags: ["live"] } });
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`The Odds API (scores) chyba (status ${resp.status}): ${text.slice(0, 200)}`);
+  }
+  const events = await resp.json();
+
+  return (events ?? []).map((e: any) => {
+    const homeScoreRaw = e.scores?.find((s: any) => s.name === e.home_team)?.score;
+    const awayScoreRaw = e.scores?.find((s: any) => s.name === e.away_team)?.score;
+    return {
+      home: e.home_team,
+      away: e.away_team,
+      commenceTime: e.commence_time,
+      completed: Boolean(e.completed),
+      homeScore: homeScoreRaw != null ? parseInt(homeScoreRaw, 10) : null,
+      awayScore: awayScoreRaw != null ? parseInt(awayScoreRaw, 10) : null,
+    };
+  });
+}

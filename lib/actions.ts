@@ -62,3 +62,9 @@ export async function refreshAction() {
   revalidateTag("odds"); // vynuti cerstve kurze - beznou navstevou sa credity setria cachovanim
   revalidatePath("/");
 }
+
+export async function refreshLiveAction() {
+  revalidateTag("live"); // vynuti cerstve zive skore
+  revalidateTag("odds"); // aj cerstve (live) kurze - manualny klik = zamer vidiet aktualny stav
+  revalidatePath("/");
+}

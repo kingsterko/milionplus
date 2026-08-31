@@ -156,3 +156,61 @@ export function predictMatch(homeStats: TeamVenueStats, awayStats: TeamVenueStat
     away_exp_goals: Math.round(awayExp * 100) / 100,
   };
 }
+
+/**
+ * In-play predikcia: zoberie predzapasove ocakavane goly (na cely zapas),
+ * prepocita ich na ZVYSNY cas (predpoklad rovnomerneho tempa strielania
+ * golov pocas zapasu - bezny zjednodusujuci predpoklad in-play modelov),
+ * a skombinuje s uz odohranym skore. Vysledok su pravdepodobnosti FINALNEHO
+ * vysledku zapasu (nie len zvysku).
+ *
+ * elapsedMinutes je odhad (cas od zaciatku zapasu), nie presny zivy cas -
+ * The Odds API neposkytuje presnu minutu/polcas, len skore.
+ */
+export function inPlayProbabilities(
+  preMatchHomeExp: number,
+  preMatchAwayExp: number,
+  elapsedMinutes: number,
+  currentHomeScore: number,
+  currentAwayScore: number,
+  totalMinutes = 90
+): MatchProbabilities {
+  const remainingFraction = Math.max((totalMinutes - elapsedMinutes) / totalMinutes, 0.02);
+  const remHomeExp = preMatchHomeExp * remainingFraction;
+  const remAwayExp = preMatchAwayExp * remainingFraction;
+
+  const grid = scoreGrid(remHomeExp, remAwayExp);
+
+  let h = 0, d = 0, a = 0;
+  for (let hg = 0; hg < grid.length; hg++) {
+    for (let ag = 0; ag < grid[hg].length; ag++) {
+      const p = grid[hg][ag];
+      const finalHome = currentHomeScore + hg;
+      const finalAway = currentAwayScore + ag;
+      if (finalHome > finalAway) h += p;
+      else if (finalHome === finalAway) d += p;
+      else a += p;
+    }
+  }
+
+  // Nad/Pod 2.5 pre CELY zapas - uz strelene goly sa odratavaju od hranice.
+  const remainingLine = 2.5 - (currentHomeScore + currentAwayScore);
+  let over = 0, under = 0;
+  for (let hg = 0; hg < grid.length; hg++) {
+    for (let ag = 0; ag < grid[hg].length; ag++) {
+      const p = grid[hg][ag];
+      if (hg + ag > remainingLine) over += p;
+      else under += p;
+    }
+  }
+
+  return {
+    h: h * 100,
+    d: d * 100,
+    a: a * 100,
+    over: over * 100,
+    under: under * 100,
+    home_exp_goals: Math.round(remHomeExp * 100) / 100,
+    away_exp_goals: Math.round(remAwayExp * 100) / 100,
+  };
+}

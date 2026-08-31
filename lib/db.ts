@@ -166,22 +166,25 @@ const CALIBRATION_BUCKETS = [
   { label: "90-100%", min: 90, max: 100 },
 ];
 
-/**
- * Porovna, co model predikoval, s tym, co sa realne stalo. Zoskupi vysporiadane
- * tipy (s ulozenou predicted_prob) do pasiem a spocita skutocnu uspesnost v kazdom.
- * Ak model funguje dobre, "avgPredicted" a "actualHitRate" by mali byt blizko seba.
- */
-export async function getCalibrationBuckets(): Promise<CalibrationBucket[]> {
-  const supabase = getSupabase();
-  const { data, error } = await supabase
-    .from("tips")
-    .select("predicted_prob, result")
-    .eq("status", "settled")
-    .not("predicted_prob", "is", null);
-  if (error) throw error;
+const MARKET_LABELS: Record<string, string> = {
+  value: "💡 Value tipy",
+  istota: "🎯 Isté tipy",
+  tiket: "🎫 Tikety",
+};
 
-  const rows = (data ?? []) as { predicted_prob: number; result: "won" | "lost" }[];
+export interface MarketPerformance {
+  market: string;
+  label: string;
+  totalCount: number;
+  wonCount: number;
+  winRatePct: number | null;
+  totalStaked: number;
+  totalProfit: number;
+  roiPct: number | null;
+  buckets: CalibrationBucket[];
+}
 
+function buildBuckets(rows: { predicted_prob: number; result: "won" | "lost" }[]): CalibrationBucket[] {
   return CALIBRATION_BUCKETS.map((b) => {
     const inBucket = rows.filter((r) => r.predicted_prob >= b.min && r.predicted_prob < b.max);
     if (inBucket.length === 0) {
@@ -196,6 +199,54 @@ export async function getCalibrationBuckets(): Promise<CalibrationBucket[]> {
       count: inBucket.length,
       avgPredicted: Math.round(avgPredicted * 10) / 10,
       actualHitRate: Math.round((won / inBucket.length) * 1000) / 10,
+    };
+  });
+}
+
+/**
+ * Rozdeli vykonnost podla TYPU strategie (value / istota / tiket) - kazdy typ
+ * ma uplne inu logiku (hladanie value vs. hladanie pravdepodobnosti), takze
+ * ich miesat dokopy skryva, ktora stratégia realne funguje. Pre kazdy typ:
+ * - kalibracia (predikovana % vs skutocna uspesnost) z ulozenej predicted_prob
+ * - realny vysledok v peniazoch (ROI) - to hovori o zisku/strate, kalibracia
+ *   sama o sebe hovori len o presnosti odhadu pravdepodobnosti, nie o zisku
+ */
+export async function getPerformanceByMarket(): Promise<MarketPerformance[]> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from("tips")
+    .select("market, predicted_prob, result, stake, profit")
+    .eq("status", "settled");
+  if (error) throw error;
+
+  const rows = (data ?? []) as {
+    market: string;
+    predicted_prob: number | null;
+    result: "won" | "lost";
+    stake: number;
+    profit: number | null;
+  }[];
+
+  const markets = Array.from(new Set(rows.map((r) => r.market))).sort();
+
+  return markets.map((market) => {
+    const marketRows = rows.filter((r) => r.market === market);
+    const withProb = marketRows.filter((r): r is typeof r & { predicted_prob: number } => r.predicted_prob != null);
+
+    const wonCount = marketRows.filter((r) => r.result === "won").length;
+    const totalStaked = marketRows.reduce((acc, r) => acc + (r.stake ?? 0), 0);
+    const totalProfit = marketRows.reduce((acc, r) => acc + (r.profit ?? 0), 0);
+
+    return {
+      market,
+      label: MARKET_LABELS[market] ?? market,
+      totalCount: marketRows.length,
+      wonCount,
+      winRatePct: marketRows.length ? Math.round((wonCount / marketRows.length) * 1000) / 10 : null,
+      totalStaked: Math.round(totalStaked * 100) / 100,
+      totalProfit: Math.round(totalProfit * 100) / 100,
+      roiPct: totalStaked > 0 ? Math.round((totalProfit / totalStaked) * 1000) / 10 : null,
+      buckets: buildBuckets(withProb),
     };
   });
 }

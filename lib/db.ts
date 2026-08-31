@@ -269,3 +269,40 @@ export async function deleteTip(tipId: number): Promise<void> {
   const { error } = await supabase.from("tips").delete().eq("id", tipId).eq("status", "open");
   if (error) throw error;
 }
+
+export interface ApiQuota {
+  remaining: number | null;
+  used: number | null;
+  updatedAt: string;
+}
+
+/**
+ * Ulozi najnovsi znamy stav kreditov The Odds API (z hlaviciek x-requests-remaining
+ * a x-requests-used, ktore API posiela pri KAZDEJ odpovedi, aj z cache). Chyba
+ * pri zapise sa zamerne prehltne - toto je len telemetria, nesmie zhodit hlavny beh appky.
+ */
+export async function recordApiQuota(remaining: number | null, used: number | null): Promise<void> {
+  if (remaining == null && used == null) return;
+  try {
+    const supabase = getSupabase();
+    await supabase.from("api_quota").upsert({
+      id: 1,
+      updated_at: new Date().toISOString(),
+      requests_remaining: remaining,
+      requests_used: used,
+    });
+  } catch {
+    // telemetria - ticho ignorovat
+  }
+}
+
+export async function getApiQuota(): Promise<ApiQuota | null> {
+  try {
+    const supabase = getSupabase();
+    const { data, error } = await supabase.from("api_quota").select("*").eq("id", 1).maybeSingle();
+    if (error || !data) return null;
+    return { remaining: data.requests_remaining, used: data.requests_used, updatedAt: data.updated_at };
+  } catch {
+    return null;
+  }
+}

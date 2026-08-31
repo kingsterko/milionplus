@@ -30,6 +30,16 @@ insert into bankroll_log (bank, note)
 select 10.0, 'počiatočný bank'
 where not exists (select 1 from bankroll_log);
 
+-- Sledovanie zostavajucich kreditov The Odds API (jeden riadok, priebezne
+-- prepisovany pri kazdom volani API - podla hlaviciek x-requests-remaining/used).
+create table if not exists api_quota (
+    id smallint primary key default 1,
+    updated_at timestamptz not null default now(),
+    requests_remaining integer,
+    requests_used integer,
+    constraint single_row check (id = 1)
+);
+
 -- RLS (Row Level Security) je v Supabase defaultne zapnute pre nove projekty.
 -- Appka pristupuje k databaze cez Service Role kluc (server-only), ktory RLS
 -- obchadza, takze pre funkcnost appky nie je potrebne RLS vypinat ani
@@ -37,3 +47,4 @@ where not exists (select 1 from bankroll_log);
 -- klienta (napr. cez anon kluc), budes musiet policies doplnit.
 alter table bankroll_log enable row level security;
 alter table tips enable row level security;
+alter table api_quota enable row level security;

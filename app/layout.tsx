@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { getApiQuota } from "@/lib/db";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -7,7 +8,18 @@ export const metadata: Metadata = {
   description: "Premier League value betting dashboard",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const quota = await getApiQuota();
+
+  let quotaColor = "text-muted";
+  let quotaLabel = "kredity neznáme";
+  if (quota?.remaining != null) {
+    quotaLabel = `${quota.remaining} kreditov`;
+    if (quota.remaining < 20) quotaColor = "text-red";
+    else if (quota.remaining < 100) quotaColor = "text-amber";
+    else quotaColor = "text-green";
+  }
+
   return (
     <html lang="sk">
       <body className="font-sans">
@@ -16,9 +28,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <h1 className="text-3xl font-display font-bold tracking-tight">
               Milion<span className="text-green">Plus</span>
             </h1>
-            <span className="text-[10px] font-mono uppercase tracking-widest text-muted">
-              Premier League
-            </span>
+            <div className="text-right">
+              <span className="text-[10px] font-mono uppercase tracking-widest text-muted block">
+                Premier League
+              </span>
+              <span
+                className={`text-[10px] font-mono ${quotaColor}`}
+                title="Zostávajúce kredity The Odds API tento mesiac (aktualizuje sa pri každom stiahnutí kurzov)"
+              >
+                📊 {quotaLabel}
+              </span>
+            </div>
           </div>
           <nav className="flex gap-6 mt-4 border-b border-border">
             <Link

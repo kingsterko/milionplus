@@ -11,9 +11,20 @@
  * v ramci tohto okna podeli o jedno stiahnutie.
  */
 
+import { recordApiQuota } from "./db";
+
 const BASE_URL_TEMPLATE = (sportKey: string) => `https://api.the-odds-api.com/v4/sports/${sportKey}/odds`;
 const TOTALS_LINE = 2.5;
 const CACHE_SECONDS = 900; // 15 minut - rozumny kompromis medzi ceerstvostou a setrenim kreditov
+
+/** Kazda odpoved (aj z cache) nesie tieto hlavicky - zaznamenaju sa, aby appka vedela ukazat zostavajuce kredity. */
+async function trackQuota(resp: Response): Promise<void> {
+  const remainingRaw = resp.headers.get("x-requests-remaining");
+  const usedRaw = resp.headers.get("x-requests-used");
+  const remaining = remainingRaw != null ? parseInt(remainingRaw, 10) : null;
+  const used = usedRaw != null ? parseInt(usedRaw, 10) : null;
+  await recordApiQuota(remaining, used);
+}
 
 export interface OddsMatch {
   home: string;
@@ -36,6 +47,7 @@ export async function fetchLeagueOdds(apiKey: string, sportKey: string, region =
   const resp = await fetch(`${BASE_URL_TEMPLATE(sportKey)}?${params.toString()}`, {
     next: { revalidate: CACHE_SECONDS, tags: ["odds"] },
   });
+  await trackQuota(resp);
   if (!resp.ok) {
     const text = await resp.text();
     throw new Error(`The Odds API chyba (status ${resp.status}): ${text.slice(0, 200)}`);
@@ -111,6 +123,7 @@ export async function fetchLeagueScores(apiKey: string, sportKey: string): Promi
   const url = `https://api.the-odds-api.com/v4/sports/${sportKey}/scores/?${params.toString()}`;
 
   const resp = await fetch(url, { next: { revalidate: SCORES_CACHE_SECONDS, tags: ["live"] } });
+  await trackQuota(resp);
   if (!resp.ok) {
     const text = await resp.text();
     throw new Error(`The Odds API (scores) chyba (status ${resp.status}): ${text.slice(0, 200)}`);

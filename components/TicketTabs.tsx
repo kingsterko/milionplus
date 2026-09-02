@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useTransition, useState } from "react";
+import { useRouter } from "next/navigation";
 import { recordTipAction } from "@/lib/actions";
 import { LEG_OPTIONS } from "@/lib/ticket";
 import type { Ticket } from "@/lib/ticket";
@@ -14,15 +15,24 @@ export default function TicketTabs({
   recordedKeys: string[];
   defaultLegs?: number;
 }) {
+  const router = useRouter();
   const [legs, setLegs] = useState(defaultLegs);
-  const ticket = ticketsByLegs[legs];
+  const [isPending, startTransition] = useTransition();
   const recordedSet = new Set(recordedKeys);
+  const ticket = ticketsByLegs[legs];
 
   const ticketOutcome = ticket
     ? ticket.legs.map((l) => `${l.league ? `[${l.league}] ` : ""}${l.match}: ${l.outcome}`).join(" | ")
     : "";
   const ticketKey = ticket ? `Tiket (${ticket.legs.length}x)|tiket|${ticketOutcome}` : "";
   const isRecorded = recordedSet.has(ticketKey);
+
+  function handleSubmit(formData: FormData) {
+    startTransition(async () => {
+      await recordTipAction(formData);
+      router.refresh();
+    });
+  }
 
   return (
     <div>
@@ -85,7 +95,7 @@ export default function TicketTabs({
             </span>
           </p>
 
-          <form action={recordTipAction}>
+          <form action={handleSubmit}>
             <input type="hidden" name="match" value={`Tiket (${ticket.legs.length}x)`} />
             <input type="hidden" name="market" value="tiket" />
             <input type="hidden" name="outcome" value={ticketOutcome} />
@@ -97,8 +107,8 @@ export default function TicketTabs({
             {isRecorded ? (
               <span className="text-xs text-green">✅ Už zaznamenané</span>
             ) : (
-              <button className="btn" type="submit">
-                📝 Zaznamenať tiket
+              <button className="btn disabled:opacity-50" type="submit" disabled={isPending}>
+                {isPending ? "Ukladám…" : "📝 Zaznamenať tiket"}
               </button>
             )}
           </form>

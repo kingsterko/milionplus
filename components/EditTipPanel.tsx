@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { editTipAction } from "@/lib/actions";
 
 export default function EditTipPanel({
@@ -12,6 +13,7 @@ export default function EditTipPanel({
   odds: number;
   stake: number;
 }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
@@ -19,6 +21,7 @@ export default function EditTipPanel({
     startTransition(async () => {
       await editTipAction(formData);
       setOpen(false);
+      router.refresh();
     });
   }
 

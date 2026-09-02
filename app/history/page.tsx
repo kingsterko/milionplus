@@ -1,6 +1,7 @@
 import { getCurrentBank, getBankrollHistory, listOpenTips, listAllTips, getPerformanceByMarket } from "@/lib/db";
 import { settleTipAction, updateBankAction, deleteTipAction } from "@/lib/actions";
 import EditTipPanel from "@/components/EditTipPanel";
+import ActionForm from "@/components/ActionForm";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +41,7 @@ export default async function HistoryPage() {
 
         <details>
           <summary className="cursor-pointer text-sm">✏️ Ručne upraviť bank</summary>
-          <form action={updateBankAction} className="flex items-center gap-2 mt-2">
+          <ActionForm action={updateBankAction} className="flex items-center gap-2 mt-2">
             <input
               type="number"
               name="bank"
@@ -52,7 +53,7 @@ export default async function HistoryPage() {
             <button className="btn" type="submit">
               Uložiť
             </button>
-          </form>
+          </ActionForm>
         </details>
       </section>
 
@@ -164,21 +165,21 @@ export default async function HistoryPage() {
                 </div>
 
                 <div className="flex flex-wrap gap-2 mb-1">
-                  <form action={settleTipAction}>
+                  <ActionForm action={settleTipAction}>
                     <input type="hidden" name="id" value={tip.id} />
                     <input type="hidden" name="won" value="true" />
                     <button className="btn" type="submit">
                       ✅ Vyhral
                     </button>
-                  </form>
-                  <form action={settleTipAction}>
+                  </ActionForm>
+                  <ActionForm action={settleTipAction}>
                     <input type="hidden" name="id" value={tip.id} />
                     <input type="hidden" name="won" value="false" />
                     <button className="btn" type="submit" style={{ borderColor: "#E23D2866", color: "#E23D28" }}>
                       ❌ Prehral
                     </button>
-                  </form>
-                  <form action={deleteTipAction}>
+                  </ActionForm>
+                  <ActionForm action={deleteTipAction}>
                     <input type="hidden" name="id" value={tip.id} />
                     <button
                       className="btn"
@@ -188,7 +189,7 @@ export default async function HistoryPage() {
                     >
                       🗑️ Zmazať
                     </button>
-                  </form>
+                  </ActionForm>
                 </div>
 
                 <EditTipPanel tipId={tip.id} odds={tip.odds} stake={tip.stake} />

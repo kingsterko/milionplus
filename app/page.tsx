@@ -6,6 +6,7 @@ import { formatKickoff, formatDayHeading, dayKey, isToday } from "@/lib/format";
 import { listOpenTips } from "@/lib/db";
 import { buildSafestTicket, LEG_OPTIONS } from "@/lib/ticket";
 import TicketTabs from "@/components/TicketTabs";
+import ActionForm from "@/components/ActionForm";
 
 export const dynamic = "force-dynamic";
 
@@ -197,7 +198,7 @@ export default async function MatchesPage({
                           {isRecorded(t.match, "value", t.outcome) ? (
                             <span className="text-xs text-green">✅ Už zaznamenané</span>
                           ) : (
-                            <form action={recordTipAction} className="mt-1">
+                            <ActionForm action={recordTipAction} className="mt-1">
                               <input type="hidden" name="match" value={t.match} />
                               <input type="hidden" name="market" value="value" />
                               <input type="hidden" name="outcome" value={t.outcome} />
@@ -209,7 +210,7 @@ export default async function MatchesPage({
                               <button className="btn" type="submit">
                                 📝 Zaznamenať
                               </button>
-                            </form>
+                            </ActionForm>
                           )}
                         </div>
                       ))
@@ -299,7 +300,7 @@ export default async function MatchesPage({
                       {isRecorded(t.match, "value", t.outcome) ? (
                         <span className="text-xs text-green">✅ Už zaznamenané</span>
                       ) : (
-                        <form action={recordTipAction} className="mt-2">
+                        <ActionForm action={recordTipAction} className="mt-2">
                           <input type="hidden" name="match" value={t.match} />
                           <input type="hidden" name="market" value="value" />
                           <input type="hidden" name="outcome" value={t.outcome} />
@@ -311,7 +312,7 @@ export default async function MatchesPage({
                           <button className="btn" type="submit">
                             📝 Zaznamenať
                           </button>
-                        </form>
+                        </ActionForm>
                       )}
                     </div>
                   ))}
@@ -341,7 +342,7 @@ export default async function MatchesPage({
                           {isRecorded(entry.match, "istota", entry.confidence.outcome) ? (
                             <span className="text-xs text-green">✅ Už zaznamenané</span>
                           ) : (
-                            <form action={recordTipAction} className="mt-2">
+                            <ActionForm action={recordTipAction} className="mt-2">
                               <input type="hidden" name="match" value={entry.match} />
                               <input type="hidden" name="market" value="istota" />
                               <input type="hidden" name="outcome" value={entry.confidence.outcome} />
@@ -353,7 +354,7 @@ export default async function MatchesPage({
                               <button className="btn" type="submit">
                                 📝 Zaznamenať
                               </button>
-                            </form>
+                            </ActionForm>
                           )}
                         </>
                       ) : (
@@ -552,7 +553,7 @@ export default async function MatchesPage({
                     Odporúčaná stávka: <span className="font-mono text-green">€{t.stake.toFixed(2)}</span>{" "}
                     <span className="text-muted">({((t.stake / bank) * 100).toFixed(1)}% banku)</span>
                   </p>
-                  <form action={recordTipAction} className="mt-2">
+                  <ActionForm action={recordTipAction} className="mt-2">
                     <input type="hidden" name="match" value={t.match} />
                     <input type="hidden" name="market" value="value" />
                     <input type="hidden" name="outcome" value={t.outcome} />
@@ -567,7 +568,7 @@ export default async function MatchesPage({
                         📝 Zaznamenať
                       </button>
                     )}
-                  </form>
+                  </ActionForm>
                 </div>
               ))}
           </div>
@@ -666,7 +667,7 @@ export default async function MatchesPage({
                           {entry.confidence.edge >= 0 ? "+" : ""}
                           {entry.confidence.edge.toFixed(1)}%
                         </p>
-                        <form action={recordTipAction} className="mt-2">
+                        <ActionForm action={recordTipAction} className="mt-2">
                           <input type="hidden" name="match" value={entry.match} />
                           <input type="hidden" name="market" value="istota" />
                           <input type="hidden" name="outcome" value={entry.confidence.outcome} />
@@ -682,7 +683,7 @@ export default async function MatchesPage({
                               📝 Zaznamenať
                             </button>
                           )}
-                        </form>
+                        </ActionForm>
                       </>
                     ) : (
                       <p className="text-xs text-muted">Nedosahuje minimálnu istotu.</p>
@@ -730,7 +731,7 @@ export default async function MatchesPage({
                       {entry.confidence.edge >= 0 ? "+" : ""}
                       {entry.confidence.edge.toFixed(1)}%
                     </p>
-                    <form action={recordTipAction} className="mt-2">
+                    <ActionForm action={recordTipAction} className="mt-2">
                       <input type="hidden" name="match" value={entry.match} />
                       <input type="hidden" name="market" value="istota" />
                       <input type="hidden" name="outcome" value={entry.confidence.outcome} />
@@ -746,7 +747,7 @@ export default async function MatchesPage({
                           📝 Zaznamenať
                         </button>
                       )}
-                    </form>
+                    </ActionForm>
                   </div>
                 ))}
               </div>

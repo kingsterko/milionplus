@@ -53,6 +53,19 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             >
               📊 História &amp; Bank
             </Link>
+            <span className="pb-3 text-border">|</span>
+            <Link
+              href="/nhl"
+              className="pb-3 text-sm font-medium text-muted hover:text-text transition-colors"
+            >
+              🏒 NHL
+            </Link>
+            <Link
+              href="/nhl/history"
+              className="pb-3 text-sm font-medium text-muted hover:text-text transition-colors"
+            >
+              🏒 NHL História
+            </Link>
           </nav>
         </div>
         <main className="max-w-2xl mx-auto px-4 pb-16">{children}</main>

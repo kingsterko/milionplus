@@ -40,6 +40,35 @@ create table if not exists api_quota (
     constraint single_row check (id = 1)
 );
 
+-- NHL modul - uplne samostatne tabulky, oddelene od futbaloveho banku/tipov.
+create table if not exists nhl_bankroll_log (
+    id bigint generated always as identity primary key,
+    timestamp timestamptz not null default now(),
+    bank numeric not null,
+    note text
+);
+
+create table if not exists nhl_tips (
+    id bigint generated always as identity primary key,
+    placed_at timestamptz not null default now(),
+    match text not null,
+    market text not null,
+    outcome text not null,
+    bookmaker text,
+    odds numeric not null,
+    edge numeric,
+    predicted_prob numeric,
+    stake numeric not null,
+    status text not null default 'open',
+    result text,
+    profit numeric,
+    settled_at timestamptz
+);
+
+insert into nhl_bankroll_log (bank, note)
+select 10.0, 'počiatočný NHL bank'
+where not exists (select 1 from nhl_bankroll_log);
+
 -- RLS (Row Level Security) je v Supabase defaultne zapnute pre nove projekty.
 -- Appka pristupuje k databaze cez Service Role kluc (server-only), ktory RLS
 -- obchadza, takze pre funkcnost appky nie je potrebne RLS vypinat ani
@@ -48,3 +77,5 @@ create table if not exists api_quota (
 alter table bankroll_log enable row level security;
 alter table tips enable row level security;
 alter table api_quota enable row level security;
+alter table nhl_bankroll_log enable row level security;
+alter table nhl_tips enable row level security;

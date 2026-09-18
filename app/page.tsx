@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { getDashboardData, getMixTicketData, getTodayDashboardData, getLiveDashboardData } from "@/lib/dashboard";
-import { recordTipAction, refreshAction, refreshLiveAction } from "@/lib/actions";
+import { getDashboardData, getMixTicketData, getTodayDashboardData } from "@/lib/dashboard";
+import { recordTipAction, refreshAction } from "@/lib/actions";
 import { LEAGUES, DEFAULT_LEAGUE_ID, getLeague } from "@/lib/leagues";
 import { formatKickoff, formatDayHeading, dayKey, isToday } from "@/lib/format";
 import { listOpenTips } from "@/lib/db";
@@ -22,8 +22,9 @@ function LeagueSwitcher({ activeId }: { activeId: string }) {
       <Link
         href={`/?league=${LIVE_ID}`}
         className={`badge ${activeId === LIVE_ID ? "badge-green" : "badge-muted"} hover:border-green transition-colors`}
+        title="Dočasne vypnuté kvôli šetreniu kreditov"
       >
-        🔴 LIVE
+        🔴 LIVE (vypnuté)
       </Link>
       <Link
         href={`/?league=${TODAY_ID}`}
@@ -78,152 +79,21 @@ export default async function MatchesPage({
     : DEFAULT_MIN_CONFIDENCE;
 
   if (leagueId === LIVE_ID) {
-    let liveData;
-    try {
-      liveData = await getLiveDashboardData(minConfidence);
-    } catch (e: unknown) {
-      const message =
-        (e as any)?.message || (typeof e === "object" ? JSON.stringify(e, null, 2) : String(e));
-      return (
-        <div className="space-y-4 mt-4">
-          <LeagueSwitcher activeId={LIVE_ID} />
-          <div className="card">
-            <p className="text-red font-medium">Chyba pri načítaní dát</p>
-            <pre className="text-xs text-muted mt-2 whitespace-pre-wrap break-words">{message}</pre>
-          </div>
-        </div>
-      );
-    }
-
-    const { bank, liveMatches, leagueErrors } = liveData;
-    const openTips = await listOpenTips();
-    const openKeys = new Set(openTips.map((t) => `${t.match}|${t.market}|${t.outcome}`));
-    const isRecorded = (match: string, market: string, outcome: string) => openKeys.has(`${match}|${market}|${outcome}`);
-
     return (
-      <div className="space-y-8 mt-4">
+      <div className="space-y-4 mt-4">
         <LeagueSwitcher activeId={LIVE_ID} />
-        <ConfidenceSwitcher leagueId={LIVE_ID} active={minConfidence} />
-
-        <div className="flex items-center justify-between">
-          <p className="text-xs text-muted">
-            🔴 {liveMatches.length} naživo bežiacich zápasov · bank €{bank.toFixed(2)}
+        <div className="card">
+          <p className="font-medium mb-1">🔴 LIVE je dočasne vypnuté</p>
+          <p className="text-sm text-muted">
+            Vypnuté kvôli šetreniu kreditov The Odds API. Kurze aj naprieč ligami sa teraz
+            sťahujú len na kliknutie tlačidla "Obnoviť", nie automaticky — live sledovanie by
+            si vyžadovalo časté opakované sťahovanie, čo je s obmedzeným free plánom nákladné.
           </p>
-          <form action={refreshLiveAction}>
-            <button className="btn-primary" type="submit">
-              🔄 Obnoviť skóre
-            </button>
-          </form>
         </div>
-
-        <p className="text-xs text-muted">
-          Odhad uplynutých minút je približný (čas od výkopu podľa API, nie presný živý stav
-          zápasu — polčasová prestávka a nadstavený čas nie sú zohľadnené). Predikcia sa počíta
-          len pre zápasy, kde máme aj predpasový model.
-        </p>
-
-        {leagueErrors.length > 0 && (
-          <details className="card">
-            <summary className="cursor-pointer text-sm font-medium">
-              ⚠️ {leagueErrors.length} lig(a) sa nepodarilo načítať
-            </summary>
-            <ul className="mt-2 space-y-1">
-              {leagueErrors.map((e, i) => (
-                <li key={i} className="text-xs text-muted">
-                  <span className="font-medium">{e.league}:</span> {e.message}
-                </li>
-              ))}
-            </ul>
-          </details>
-        )}
-
-        {liveMatches.length === 0 ? (
-          <p className="text-sm text-muted">Momentálne nikde naživo nehrajú.</p>
-        ) : (
-          <div className="space-y-3">
-            {liveMatches.map((m, i) => (
-              <div key={i} className="card-today">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="badge badge-muted">{m.league}</span>
-                  <span className="text-[10px] font-mono text-red font-semibold">🔴 {m.elapsedMinutes}'</span>
-                </div>
-                <div className="flex items-center justify-between mt-2 mb-2">
-                  <p className="font-medium">{m.match}</p>
-                  <p className="font-mono text-xl font-bold">
-                    {m.homeScore} : {m.awayScore}
-                  </p>
-                </div>
-
-                {!m.hasModel ? (
-                  <p className="text-xs text-muted">
-                    Bez vlastného modelu pre tento zápas (nedostatok dát tímov) — len skóre, bez predikcie.
-                  </p>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-3 gap-2 mb-2 text-center font-mono text-xs">
-                      <div className="border border-border rounded p-1.5">
-                        <p className="text-muted text-[9px] uppercase">Domáci</p>
-                        {m.liveProbs!.h.toFixed(0)}%
-                      </div>
-                      <div className="border border-border rounded p-1.5">
-                        <p className="text-muted text-[9px] uppercase">Remíza</p>
-                        {m.liveProbs!.d.toFixed(0)}%
-                      </div>
-                      <div className="border border-border rounded p-1.5">
-                        <p className="text-muted text-[9px] uppercase">Hostia</p>
-                        {m.liveProbs!.a.toFixed(0)}%
-                      </div>
-                    </div>
-
-                    {m.confidence && (
-                      <p className="text-xs text-muted mb-2">
-                        Aktuálny favorit: <span className="text-text font-medium">{m.confidence.outcome}</span> ({m.confidence.modelProb.toFixed(0)}%)
-                      </p>
-                    )}
-
-                    {m.valueTips.length === 0 ? (
-                      <p className="text-xs text-muted">Momentálne žiadny live value tip.</p>
-                    ) : (
-                      m.valueTips.map((t, j) => (
-                        <div key={j} className="border-t border-border pt-2 mt-2">
-                          <div className="flex items-center justify-between">
-                            <p className="text-sm">
-                              <span className="font-medium">{t.outcome}</span> @ {t.bookmaker} · kurz {t.odds.toFixed(2)}
-                            </p>
-                            <span className="badge badge-green shrink-0">+{t.edge.toFixed(1)}%</span>
-                          </div>
-                          <p className="text-xs mt-1">
-                            Odporúčaná stávka: <span className="font-mono text-green">€{t.stake.toFixed(2)}</span>
-                          </p>
-                          {isRecorded(t.match, "value", t.outcome) ? (
-                            <span className="text-xs text-green">✅ Už zaznamenané</span>
-                          ) : (
-                            <ActionForm action={recordTipAction} className="mt-1">
-                              <input type="hidden" name="match" value={t.match} />
-                              <input type="hidden" name="market" value="value" />
-                              <input type="hidden" name="outcome" value={t.outcome} />
-                              <input type="hidden" name="bookmaker" value={t.bookmaker} />
-                              <input type="hidden" name="odds" value={t.odds} />
-                              <input type="hidden" name="edge" value={t.edge} />
-                              <input type="hidden" name="predictedProb" value={t.consensusProb} />
-                              <input type="hidden" name="stake" value={t.stake} />
-                              <button className="btn" type="submit">
-                                📝 Zaznamenať
-                              </button>
-                            </ActionForm>
-                          )}
-                        </div>
-                      ))
-                    )}
-                  </>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     );
   }
+
 
   if (leagueId === TODAY_ID) {
     let todayData;

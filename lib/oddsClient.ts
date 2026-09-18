@@ -5,17 +5,19 @@
  * DOLEZITE - kredity: The Odds API pocita cenu ako (pocet trhov) x (pocet
  * regionov) za KAZDY request. My ziadame 2 trhy (h2h + totals) x 1 region
  * = 2 kredity na jedno volanie. Pri free planu (500 kreditov/mesiac) to je
- * len 250 volani celkovo. Preto MUSIME cachovat - bez cachovania kazde
- * jednotlive otvorenie/reload stranky minie kredity odznova, aj pri MIX/DNES
- * (7 lig x 2 kredity = 14 naraz). S cachovanim (15 min) sa viacero navstev
- * v ramci tohto okna podeli o jedno stiahnutie.
+ * len 250 volani celkovo.
+ *
+ * Preto sa kurze cachuju NADOBRO (revalidate: false) - appka NIKDY sama od
+ * seba znovu nestiahne kurze len kvoli uplynutiu casu. Jediny sposob, ako sa
+ * cache zneplatni, je explicitne kliknutie na tlacidlo "Obnovit" (to zavola
+ * revalidateTag("odds")). Bez kliknutia appka pouziva rovnake (mozno stare)
+ * data opakovane, bez akehokolvek dalsieho minutia kreditov.
  */
 
 import { recordApiQuota } from "./db";
 
 const BASE_URL_TEMPLATE = (sportKey: string) => `https://api.the-odds-api.com/v4/sports/${sportKey}/odds`;
 const TOTALS_LINE = 2.5;
-const CACHE_SECONDS = 900; // 15 minut - rozumny kompromis medzi ceerstvostou a setrenim kreditov
 
 /** Kazda odpoved (aj z cache) nesie tieto hlavicky - zaznamenaju sa, aby appka vedela ukazat zostavajuce kredity. */
 async function trackQuota(resp: Response): Promise<void> {
@@ -45,7 +47,7 @@ export async function fetchLeagueOdds(apiKey: string, sportKey: string, region =
   });
 
   const resp = await fetch(`${BASE_URL_TEMPLATE(sportKey)}?${params.toString()}`, {
-    next: { revalidate: CACHE_SECONDS, tags: ["odds"] },
+    next: { revalidate: false, tags: ["odds"] },
   });
   await trackQuota(resp);
   if (!resp.ok) {
@@ -102,8 +104,6 @@ export async function fetchLeagueOdds(apiKey: string, sportKey: string, region =
   return matches;
 }
 
-const SCORES_CACHE_SECONDS = 300; // 5 min zakladne cachovanie - manualne "Obnovit" tlacidlo obchadza cache cez tag "live"
-
 export interface LiveScore {
   home: string;
   away: string;
@@ -114,15 +114,15 @@ export interface LiveScore {
 }
 
 /**
- * Ziska aktualne skore zapasov danej ligy (posledny den+den dopredu, aby
- * pokrylo aj prave rozbehnute zapasy). Samostatny, lacnejsi endpoint nez
- * /odds (bez x2 za trhy) - viac v komentari v dashboard.ts.
+ * NEPOUZIVANE, kym je LIVE modul deaktivovany (viz app/page.tsx) - ponechane
+ * funkcne pre pripad opatovneho zapnutia, ale nikto ho aktualne nevola,
+ * takze nesposobuje ziadne kredity.
  */
 export async function fetchLeagueScores(apiKey: string, sportKey: string): Promise<LiveScore[]> {
   const params = new URLSearchParams({ apiKey, daysFrom: "1", dateFormat: "iso" });
   const url = `https://api.the-odds-api.com/v4/sports/${sportKey}/scores/?${params.toString()}`;
 
-  const resp = await fetch(url, { next: { revalidate: SCORES_CACHE_SECONDS, tags: ["live"] } });
+  const resp = await fetch(url, { next: { revalidate: false, tags: ["live"] } });
   await trackQuota(resp);
   if (!resp.ok) {
     const text = await resp.text();

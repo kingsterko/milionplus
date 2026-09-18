@@ -10,7 +10,6 @@ import { recordApiQuota } from "./db";
 const SPORT_KEY = "icehockey_nhl";
 const BASE_URL = `https://api.the-odds-api.com/v4/sports/${SPORT_KEY}/odds`;
 const TOTALS_LINE = 6.5; // bezna hranica pre NHL (na rozdiel od futbalovych 2.5)
-const CACHE_SECONDS = 900;
 
 async function trackQuota(resp: Response): Promise<void> {
   const remainingRaw = resp.headers.get("x-requests-remaining");
@@ -39,7 +38,7 @@ export async function fetchNhlOdds(apiKey: string, region = "us"): Promise<NhlMa
   });
 
   const resp = await fetch(`${BASE_URL}?${params.toString()}`, {
-    next: { revalidate: CACHE_SECONDS, tags: ["nhl_odds"] },
+    next: { revalidate: false, tags: ["nhl_odds"] },
   });
   await trackQuota(resp);
   if (!resp.ok) {

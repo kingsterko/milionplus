@@ -1,12 +1,13 @@
 "use server";
 
-import { revalidateTag } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import * as nhlDb from "./nhlDb";
 
 /**
  * Rovnaky princip ako lib/actions.ts - akcie upravujuce len Supabase data
- * (tipy, bank) NEVOLAJU revalidatePath, aby nezneplatnili cache NHL kurzov.
- * UI aktualizuje klient cez router.refresh() (components/ActionForm.tsx).
+ * (tipy, bank) NEVOLAJU revalidatePath("/nhl") (to by zneplatnilo cache
+ * NHL kurzov/statistik), ale BEZPECNE volaju revalidatePath("/nhl/history"),
+ * kedze ta stranka ziadne kurze/statistiky nesťahuje.
  */
 
 export async function recordNhlTipAction(formData: FormData) {
@@ -20,17 +21,20 @@ export async function recordNhlTipAction(formData: FormData) {
   const stake = parseFloat(String(formData.get("stake")));
 
   await nhlDb.logTip(match, market, outcome, bookmaker, odds, edge, predictedProb, stake);
+  revalidatePath("/nhl/history");
 }
 
 export async function settleNhlTipAction(formData: FormData) {
   const id = parseInt(String(formData.get("id")), 10);
   const won = String(formData.get("won")) === "true";
   await nhlDb.settleTip(id, won);
+  revalidatePath("/nhl/history");
 }
 
 export async function deleteNhlTipAction(formData: FormData) {
   const id = parseInt(String(formData.get("id")), 10);
   await nhlDb.deleteTip(id);
+  revalidatePath("/nhl/history");
 }
 
 export async function editNhlTipAction(formData: FormData) {
@@ -42,12 +46,14 @@ export async function editNhlTipAction(formData: FormData) {
     odds: Number.isNaN(odds) ? undefined : odds,
     stake: Number.isNaN(stake) ? undefined : stake,
   });
+  revalidatePath("/nhl/history");
 }
 
 export async function updateNhlBankAction(formData: FormData) {
   const value = parseFloat(String(formData.get("bank")));
   if (Number.isNaN(value) || value < 0) return;
   await nhlDb.setBank(value, "manuálna úprava");
+  revalidatePath("/nhl/history");
 }
 
 export async function refreshNhlAction() {

@@ -8,11 +8,18 @@ import * as db from "./db";
  * NEVOLAJU revalidatePath("/") - to by zneplatnilo VSETKY cachovane data
  * pouzite pri renderovani tej stranky, vratane draho cachovanych kurzov z
  * The Odds API (kazde kliknutie by tak vynutilo novy, zbytocny, platený
- * request). Namiesto toho UI aktualizuje klient (pozri components/ActionForm.tsx)
- * cez router.refresh() - to znovu vykona render stranky, ale kedze sme
- * nezneplatnili "odds"/"live" tagy, fetch() na kurze sa vrati z cache.
- * Supabase citania (bank, zoznam tipov) su vzdy cerstve aj tak, lebo nejdu
- * cez Next.js fetch-cache system.
+ * request).
+ *
+ * NAMIESTO toho volaju revalidatePath("/history") - to JE bezpecne, lebo
+ * stranka /history nikdy nesťahuje kurze (ziadny "odds" tag sa tam
+ * nepouziva), takze zneplatnenie jej cache sa kreditov vobec netyka. Tento
+ * krok zaroven vyriesi oneskorenie/zastaranu verziu Histórie po akcii
+ * spustenej na hlavnej stranke (Next.js klientska Router Cache by inak
+ * mohla na chvilu ukazat starsi stav /history).
+ *
+ * UI na aktualnej stranke sa navyse aktualizuje aj cez router.refresh()
+ * (components/ActionForm.tsx) - Supabase citania su vzdy cerstve, lebo
+ * nejdu cez Next.js fetch-cache system.
  */
 
 export async function recordTipAction(formData: FormData) {
@@ -26,6 +33,7 @@ export async function recordTipAction(formData: FormData) {
   const stake = parseFloat(String(formData.get("stake")));
 
   await db.logTip(match, market, outcome, bookmaker, odds, edge, predictedProb, stake);
+  revalidatePath("/history");
 }
 
 export async function settleTipAction(formData: FormData) {
@@ -33,11 +41,13 @@ export async function settleTipAction(formData: FormData) {
   const won = String(formData.get("won")) === "true";
 
   await db.settleTip(id, won);
+  revalidatePath("/history");
 }
 
 export async function deleteTipAction(formData: FormData) {
   const id = parseInt(String(formData.get("id")), 10);
   await db.deleteTip(id);
+  revalidatePath("/history");
 }
 
 export async function editTipAction(formData: FormData) {
@@ -51,6 +61,7 @@ export async function editTipAction(formData: FormData) {
     odds: Number.isNaN(odds) ? undefined : odds,
     stake: Number.isNaN(stake) ? undefined : stake,
   });
+  revalidatePath("/history");
 }
 
 export async function updateBankAction(formData: FormData) {
@@ -58,6 +69,7 @@ export async function updateBankAction(formData: FormData) {
   if (Number.isNaN(value) || value < 0) return;
 
   await db.setBank(value, "manuálna úprava");
+  revalidatePath("/history");
 }
 
 // Tieto DVE akcie su jedine, kde CHCEME zneplatnit cache kurzov - to je cely

@@ -1,15 +1,17 @@
-import { recordApiQuota } from "./db";
+import { recordApiQuota, getCachedOdds, setCachedOdds } from "./db";
 
 /**
  * Kurze pre NHL z The Odds API. Na rozdiel od futbalu je h2h trh DVOJCESTNY
  * (ziadna remiza - hokej sa vzdy dohrava do vitaza cez predlzenie/najazdy).
- * Vlastny cache tag ("nhl_odds"), aby manualne obnovenie NHL casti
- * neovplyvnilo (a nezneplatnilo) futbalovu cache kurzov a naopak.
+ *
+ * Rovnaka vlastna Supabase cache ako pri futbale (viz oddsClient.ts) -
+ * appka NIKDY sama od seba nevola API znova, len na explicitne "Obnovit".
  */
 
 const SPORT_KEY = "icehockey_nhl";
 const BASE_URL = `https://api.the-odds-api.com/v4/sports/${SPORT_KEY}/odds`;
 const TOTALS_LINE = 6.5; // bezna hranica pre NHL (na rozdiel od futbalovych 2.5)
+const CACHE_KEY = "nhl:icehockey_nhl";
 
 async function trackQuota(resp: Response): Promise<void> {
   const remainingRaw = resp.headers.get("x-requests-remaining");
@@ -29,7 +31,7 @@ export interface NhlMatch {
   totalsOdds: { over: number; under: number }[];
 }
 
-export async function fetchNhlOdds(apiKey: string, region = "us"): Promise<NhlMatch[]> {
+async function fetchFreshNhlOdds(apiKey: string, region: string): Promise<NhlMatch[]> {
   const params = new URLSearchParams({
     apiKey,
     regions: region,
@@ -37,9 +39,7 @@ export async function fetchNhlOdds(apiKey: string, region = "us"): Promise<NhlMa
     oddsFormat: "decimal",
   });
 
-  const resp = await fetch(`${BASE_URL}?${params.toString()}`, {
-    next: { revalidate: false, tags: ["nhl_odds"] },
-  });
+  const resp = await fetch(`${BASE_URL}?${params.toString()}`, { cache: "no-store" });
   await trackQuota(resp);
   if (!resp.ok) {
     const text = await resp.text();
@@ -85,4 +85,15 @@ export async function fetchNhlOdds(apiKey: string, region = "us"): Promise<NhlMa
     matches.push({ home, away, commenceTime: event.commence_time, bookmakers, odds, totalsBookmakers, totalsOdds });
   }
   return matches;
+}
+
+export async function fetchNhlOdds(apiKey: string, region = "us"): Promise<NhlMatch[]> {
+  const cached = await getCachedOdds(CACHE_KEY);
+  if (cached) {
+    return cached.data as NhlMatch[];
+  }
+
+  const fresh = await fetchFreshNhlOdds(apiKey, region);
+  await setCachedOdds(CACHE_KEY, fresh);
+  return fresh;
 }

@@ -69,6 +69,14 @@ insert into nhl_bankroll_log (bank, note)
 select 10.0, 'počiatočný NHL bank'
 where not exists (select 1 from nhl_bankroll_log);
 
+-- Vlastna, plne kontrolovana cache pre kurze (namiesto spoliehania sa na
+-- Next.js/Vercel fetch-cache).
+create table if not exists cached_odds (
+    sport_key text primary key,
+    data jsonb not null,
+    fetched_at timestamptz not null default now()
+);
+
 -- RLS (Row Level Security) je v Supabase defaultne zapnute pre nove projekty.
 -- Appka pristupuje k databaze cez Service Role kluc (server-only), ktory RLS
 -- obchadza, takze pre funkcnost appky nie je potrebne RLS vypinat ani
@@ -79,3 +87,4 @@ alter table tips enable row level security;
 alter table api_quota enable row level security;
 alter table nhl_bankroll_log enable row level security;
 alter table nhl_tips enable row level security;
+alter table cached_odds enable row level security;

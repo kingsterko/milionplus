@@ -7,19 +7,20 @@
  * = 2 kredity na jedno volanie. Pri free planu (500 kreditov/mesiac) to je
  * len 250 volani celkovo.
  *
- * Preto sa kurze cachuju NADOBRO (revalidate: false) - appka NIKDY sama od
- * seba znovu nestiahne kurze len kvoli uplynutiu casu. Jediny sposob, ako sa
- * cache zneplatni, je explicitne kliknutie na tlacidlo "Obnovit" (to zavola
- * revalidateTag("odds")). Bez kliknutia appka pouziva rovnake (mozno stare)
- * data opakovane, bez akehokolvek dalsieho minutia kreditov.
+ * Preto POUZIVAME VLASTNU cache v Supabase (nie Next.js/Vercel fetch-cache,
+ * ktoreho realne spravanie sa neda spolahlivo overit zvonka - v praxi sa
+ * ukazalo, ze aj s "revalidate: false" appka aj tak niekedy volala API
+ * znova). Appka si kurze ulozi do tabulky cached_odds a NIKDY sa sama od
+ * seba nevrati na The Odds API - len ked uzivatel explicitne klikne
+ * "Obnovit" (to zavola clearCachedOdds pre danu ligu/sport_key).
  */
 
-import { recordApiQuota } from "./db";
+import { recordApiQuota, getCachedOdds, setCachedOdds } from "./db";
 
 const BASE_URL_TEMPLATE = (sportKey: string) => `https://api.the-odds-api.com/v4/sports/${sportKey}/odds`;
 const TOTALS_LINE = 2.5;
 
-/** Kazda odpoved (aj z cache) nesie tieto hlavicky - zaznamenaju sa, aby appka vedela ukazat zostavajuce kredity. */
+/** Kazda odpoved nesie tieto hlavicky - zaznamenaju sa, aby appka vedela ukazat zostavajuce kredity. */
 async function trackQuota(resp: Response): Promise<void> {
   const remainingRaw = resp.headers.get("x-requests-remaining");
   const usedRaw = resp.headers.get("x-requests-used");
@@ -38,7 +39,7 @@ export interface OddsMatch {
   totalsOdds: { over: number; under: number }[];
 }
 
-export async function fetchLeagueOdds(apiKey: string, sportKey: string, region = "uk"): Promise<OddsMatch[]> {
+async function fetchFreshLeagueOdds(apiKey: string, sportKey: string, region: string): Promise<OddsMatch[]> {
   const params = new URLSearchParams({
     apiKey,
     regions: region,
@@ -46,9 +47,7 @@ export async function fetchLeagueOdds(apiKey: string, sportKey: string, region =
     oddsFormat: "decimal",
   });
 
-  const resp = await fetch(`${BASE_URL_TEMPLATE(sportKey)}?${params.toString()}`, {
-    next: { revalidate: false, tags: ["odds"] },
-  });
+  const resp = await fetch(`${BASE_URL_TEMPLATE(sportKey)}?${params.toString()}`, { cache: "no-store" });
   await trackQuota(resp);
   if (!resp.ok) {
     const text = await resp.text();
@@ -91,17 +90,21 @@ export async function fetchLeagueOdds(apiKey: string, sportKey: string, region =
       }
     }
 
-    matches.push({
-      home,
-      away,
-      commenceTime: event.commence_time,
-      bookmakers,
-      odds,
-      totalsBookmakers,
-      totalsOdds,
-    });
+    matches.push({ home, away, commenceTime: event.commence_time, bookmakers, odds, totalsBookmakers, totalsOdds });
   }
   return matches;
+}
+
+export async function fetchLeagueOdds(apiKey: string, sportKey: string, region = "uk"): Promise<OddsMatch[]> {
+  const cacheKey = `soccer:${sportKey}`;
+  const cached = await getCachedOdds(cacheKey);
+  if (cached) {
+    return cached.data as OddsMatch[];
+  }
+
+  const fresh = await fetchFreshLeagueOdds(apiKey, sportKey, region);
+  await setCachedOdds(cacheKey, fresh);
+  return fresh;
 }
 
 export interface LiveScore {

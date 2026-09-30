@@ -1,7 +1,8 @@
 "use server";
 
-import { revalidatePath, revalidateTag } from "next/cache";
+import { revalidatePath } from "next/cache";
 import * as nhlDb from "./nhlDb";
+import { clearCachedOdds } from "./db";
 
 /**
  * Rovnaky princip ako lib/actions.ts - akcie upravujuce len Supabase data
@@ -56,7 +57,10 @@ export async function updateNhlBankAction(formData: FormData) {
   revalidatePath("/nhl/history");
 }
 
+// Zmaze len NHL zaznam v cache kurzov (futbalove zaznamy nechava nedotknute).
+// NHL statistiky (nhl_stats tag) sa cachuju oddelene cez Next.js fetch-cache
+// a nie su spojene s kreditmi, preto ich tu neriesime.
 export async function refreshNhlAction() {
-  revalidateTag("nhl_odds");
-  revalidateTag("nhl_stats");
+  await clearCachedOdds("nhl:icehockey_nhl");
+  revalidatePath("/nhl");
 }

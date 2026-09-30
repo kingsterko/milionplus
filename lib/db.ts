@@ -306,3 +306,42 @@ export async function getApiQuota(): Promise<ApiQuota | null> {
     return null;
   }
 }
+
+/**
+ * Vlastna, plne kontrolovana cache kurzov (namiesto spoliehania sa na
+ * Next.js/Vercel fetch-cache, ktoreho spravanie sa neda spolahlivo overit
+ * zvonka). Appka si kurze ulozi sem a NIKDY sa sama od seba nevrati na
+ * The Odds API - len ked uzivatel explicitne klikne "Obnovit" (co zavola
+ * clearCachedOdds pre danu ligu).
+ */
+
+export async function getCachedOdds(sportKey: string): Promise<{ data: any; fetchedAt: string } | null> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase.from("cached_odds").select("*").eq("sport_key", sportKey).maybeSingle();
+  if (error || !data) return null;
+  return { data: data.data, fetchedAt: data.fetched_at };
+}
+
+export async function setCachedOdds(sportKey: string, data: any): Promise<void> {
+  const supabase = getSupabase();
+  const { error } = await supabase
+    .from("cached_odds")
+    .upsert({ sport_key: sportKey, data, fetched_at: new Date().toISOString() });
+  if (error) throw error;
+}
+
+export async function clearCachedOdds(sportKey?: string): Promise<void> {
+  const supabase = getSupabase();
+  if (sportKey) {
+    await supabase.from("cached_odds").delete().eq("sport_key", sportKey);
+  } else {
+    await supabase.from("cached_odds").delete().neq("sport_key", "");
+  }
+}
+
+/** Zmaze len zaznamy zacinajuce danou predponou (napr. "soccer:" alebo "nhl:") - aby obnovenie
+ *  jedneho sportu omylom nevymazalo cache druheho, kedze obe zdielaju tu istu tabulku. */
+export async function clearCachedOddsByPrefix(prefix: string): Promise<void> {
+  const supabase = getSupabase();
+  await supabase.from("cached_odds").delete().like("sport_key", `${prefix}%`);
+}

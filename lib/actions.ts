@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath, revalidateTag } from "next/cache";
+import { revalidatePath } from "next/cache";
 import * as db from "./db";
 
 /**
@@ -72,15 +72,10 @@ export async function updateBankAction(formData: FormData) {
   revalidatePath("/history");
 }
 
-// Tieto DVE akcie su jedine, kde CHCEME zneplatnit cache kurzov - to je cely
-// ich zmysel (manualne vynutene obnovenie na uzivatelovu ziadost).
+// Tato akcia je jedina, kde CHCEME zneplatnit cache kurzov - to je cely jej
+// zmysel (manualne vynutene obnovenie na uzivatelovu ziadost). Mazeme len
+// "soccer:" predponu, aby sme neovplyvnili NHL cache (zdiela tu istu tabulku).
 export async function refreshAction() {
-  revalidateTag("odds");
-  revalidatePath("/");
-}
-
-export async function refreshLiveAction() {
-  revalidateTag("live");
-  revalidateTag("odds");
+  await db.clearCachedOddsByPrefix("soccer:");
   revalidatePath("/");
 }

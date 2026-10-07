@@ -1,5 +1,5 @@
 import { fetchLeagueOdds, fetchLeagueScores, OddsMatch, LiveScore } from "./oddsClient";
-import { fetchSeasonMatches, buildMatchIndex, weightedStatsForTeam, computeLeagueAverage, FootballDataError } from "./footballData";
+import { fetchSeasonMatches, buildMatchIndex, weightedStatsForTeam, computeLeagueAverage, diagnoseTeamMatch, FootballDataError } from "./footballData";
 import { predictMatch, inPlayProbabilities, expectedGoals, MatchProbabilities } from "./poisson";
 import {
   analyzeMatch1x2,
@@ -170,9 +170,17 @@ async function fetchAndAnalyzeLeague(
       if (homeStats && awayStats) {
         ownProbs = predictMatch(homeStats, awayStats);
       } else {
-        modelWarnings.push(
-          `${m.home} vs ${m.away}: nedostatok odohraných zápasov (aktuálna aj minulá sezóna spolu) — napr. novo postúpený tím. Použil sa fallback.`
-        );
+        const homeDiag = diagnoseTeamMatch(matchIndex, m.home);
+        const awayDiag = diagnoseTeamMatch(matchIndex, m.away);
+        const describe = (teamLabel: string, d: ReturnType<typeof diagnoseTeamMatch>) => {
+          if (!d.found) return `${teamLabel}: tím sa vôbec nenašiel v dátach (možný problém s názvom)`;
+          return `${teamLabel}: nájdený ako "${d.matchedName}", ${d.homeCount} domácich / ${d.awayCount} vonkajších zápasov (treba aspoň 3+3)`;
+        };
+        const details = [
+          !homeStats ? describe(m.home, homeDiag) : null,
+          !awayStats ? describe(m.away, awayDiag) : null,
+        ].filter(Boolean).join(" · ");
+        modelWarnings.push(`${m.home} vs ${m.away}: ${details}. Použil sa fallback.`);
       }
     }
 

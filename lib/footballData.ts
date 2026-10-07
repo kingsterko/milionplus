@@ -301,6 +301,32 @@ function shrinkToward(raw: number, leagueAvg: number, sampleSize: number, streng
   return (raw * sampleSize + leagueAvg * strength) / (sampleSize + strength);
 }
 
+export interface TeamMatchDiagnostic {
+  found: boolean;
+  matchedName: string | null;
+  homeCount: number;
+  awayCount: number;
+}
+
+/** Ukaze PRESNY dovod, preco weightedStatsForTeam vratilo null - na rozlisenie
+ *  "tim sa vobec nenasiel" (problem s menom) vs "nasiel sa, ale ma malo zapasov" (ocakavane na zaciatku sezony/po postupe). */
+export function diagnoseTeamMatch(
+  index: MatchIndex,
+  teamName: string,
+  maxMatches: number = MAX_MATCHES_PER_VENUE
+): TeamMatchDiagnostic {
+  const match = matchTeam(teamName, Object.keys(index));
+  if (!match) {
+    return { found: false, matchedName: null, homeCount: 0, awayCount: 0 };
+  }
+  return {
+    found: true,
+    matchedName: match,
+    homeCount: Math.min(index[match].home.length, maxMatches),
+    awayCount: Math.min(index[match].away.length, maxMatches),
+  };
+}
+
 export function weightedStatsForTeam(
   index: MatchIndex,
   teamName: string,

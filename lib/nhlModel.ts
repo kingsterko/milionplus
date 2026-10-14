@@ -50,9 +50,12 @@ export interface NhlMatchProbabilities {
   away_exp_goals: number;
 }
 
-export function predictNhlMatch(homeExp: number, awayExp: number): NhlMatchProbabilities {
-  const grid = scoreGrid(homeExp, awayExp, 0, NHL_MAX_GOALS);
+/** Postavi mriezku skore raz - pouziva sa spolocne pre moneyline aj regulation-time trh, aby sa nepocitala dvakrat. */
+export function buildNhlGrid(homeExp: number, awayExp: number): number[][] {
+  return scoreGrid(homeExp, awayExp, 0, NHL_MAX_GOALS);
+}
 
+function regulationSplitFromGrid(grid: number[][]): { homeReg: number; awayReg: number; tie: number } {
   let homeReg = 0, awayReg = 0, tie = 0;
   for (let hg = 0; hg < grid.length; hg++) {
     for (let ag = 0; ag < grid[hg].length; ag++) {
@@ -62,6 +65,12 @@ export function predictNhlMatch(homeExp: number, awayExp: number): NhlMatchProba
       else tie += p;
     }
   }
+  return { homeReg, awayReg, tie };
+}
+
+/** Moneyline (2-cestny, vratane predlzenia/najazdov) + Nad/Pod - hlavny, bezny trh u vsetkych bookmakerov. */
+export function moneylineFromGrid(grid: number[][], homeExp: number, awayExp: number): NhlMatchProbabilities {
+  const { homeReg, awayReg, tie } = regulationSplitFromGrid(grid);
 
   const home = (homeReg + tie * OT_HOME_SHARE) * 100;
   const away = (awayReg + tie * (1 - OT_HOME_SHARE)) * 100;
@@ -76,4 +85,26 @@ export function predictNhlMatch(homeExp: number, awayExp: number): NhlMatchProba
     home_exp_goals: Math.round(homeExp * 100) / 100,
     away_exp_goals: Math.round(awayExp * 100) / 100,
   };
+}
+
+export interface NhlRegulationProbabilities {
+  [key: string]: number;
+  home: number;
+  draw: number;
+  away: number;
+}
+
+/**
+ * 3-cestny trh "vitaz po riadnej hracej dobe" (h2h_3_way u The Odds API) -
+ * pripusta remizu ako samostatny vysledok, preto ma vyssie kurze nez moneyline.
+ * Ziadne OT prerozdelenie - priamo surove cisla z mriezky.
+ */
+export function regulationFromGrid(grid: number[][]): NhlRegulationProbabilities {
+  const { homeReg, awayReg, tie } = regulationSplitFromGrid(grid);
+  return { home: homeReg * 100, draw: tie * 100, away: awayReg * 100 };
+}
+
+export function predictNhlMatch(homeExp: number, awayExp: number): NhlMatchProbabilities {
+  const grid = buildNhlGrid(homeExp, awayExp);
+  return moneylineFromGrid(grid, homeExp, awayExp);
 }

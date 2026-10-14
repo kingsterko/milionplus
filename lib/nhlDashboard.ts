@@ -1,6 +1,6 @@
 import { fetchNhlOdds, NhlMatch } from "./nhlOddsClient";
-import { fetchNhlTeamStats, getNhlTeamStats, computeNhlLeagueAverage, NhlStatsError } from "./nhlStatsClient";
-import { nhlExpectedGoals, predictNhlMatch, NHL_TOTALS_LINE } from "./nhlModel";
+import { fetchNhlTeamStats, getNhlTeamStats, computeNhlLeagueAverage, NhlStatsError, NhlTeamStats } from "./nhlStatsClient";
+import { nhlExpectedGoals, buildNhlGrid, moneylineFromGrid, regulationFromGrid, NhlMatchProbabilities, NhlRegulationProbabilities, NHL_TOTALS_LINE } from "./nhlModel";
 import { analyzeMarketGeneric, perOutcomeAnalysis, confidencePick, ValueTip, ConfidencePick } from "./model";
 import { getCurrentBank } from "./nhlDb";
 
@@ -9,6 +9,7 @@ const MIN_GAMES_PLAYED = 3; // pod tento pocet odohranych zapasov je priemer gol
 const DEFAULT_MIN_CONFIDENCE = 55;
 
 const HOME_AWAY_LABEL: Record<string, string> = { home: "Domáci", away: "Hostia" };
+const REGULATION_LABEL: Record<string, string> = { home: "Domáci (riadna doba)", draw: "Remíza (riadna doba)", away: "Hostia (riadna doba)" };
 const TOTALS_LABEL: Record<string, string> = { over: `Nad ${NHL_TOTALS_LINE} gólu`, under: `Pod ${NHL_TOTALS_LINE} gólu` };
 
 export interface NhlConfidenceEntry {
@@ -21,6 +22,7 @@ export interface NhlDashboardData {
   matches: NhlMatch[];
   valueTips: ValueTip[];
   confidenceEntries: NhlConfidenceEntry[];
+  regulationConfidenceEntries: NhlConfidenceEntry[];
   totalsConfidenceEntries: NhlConfidenceEntry[];
   modelWarnings: string[];
   useOwnModel: boolean;
@@ -53,7 +55,7 @@ export async function getNhlDashboardData(minConfidence: number = DEFAULT_MIN_CO
     .sort((a, b) => (a.commenceTime < b.commenceTime ? -1 : a.commenceTime > b.commenceTime ? 1 : 0))
     .slice(0, MAX_MATCHES);
 
-  let allStats: Record<string, ReturnType<typeof computeNhlLeagueAverage> extends never ? never : any> = {};
+  let allStats: Record<string, NhlTeamStats> = {};
   let statsError: string | null = null;
   let useOwnModel = false;
 
@@ -68,18 +70,22 @@ export async function getNhlDashboardData(minConfidence: number = DEFAULT_MIN_CO
 
   const valueTips: ValueTip[] = [];
   const confidenceEntries: NhlConfidenceEntry[] = [];
+  const regulationConfidenceEntries: NhlConfidenceEntry[] = [];
   const totalsConfidenceEntries: NhlConfidenceEntry[] = [];
   const modelWarnings: string[] = [];
 
   for (const m of matches) {
-    let ownProbs: ReturnType<typeof predictNhlMatch> | null = null;
+    let moneylineProbs: NhlMatchProbabilities | null = null;
+    let regulationProbs: NhlRegulationProbabilities | null = null;
 
     if (useOwnModel) {
       const homeStats = getNhlTeamStats(allStats, m.home);
       const awayStats = getNhlTeamStats(allStats, m.away);
       if (homeStats && awayStats && homeStats.gamesPlayed >= MIN_GAMES_PLAYED && awayStats.gamesPlayed >= MIN_GAMES_PLAYED) {
         const { home, away } = nhlExpectedGoals(homeStats, awayStats, leagueAvg);
-        ownProbs = predictNhlMatch(home, away);
+        const grid = buildNhlGrid(home, away); // mriezka sa pocita raz, odvodia sa z nej oba trhy
+        moneylineProbs = moneylineFromGrid(grid, home, away);
+        regulationProbs = regulationFromGrid(grid);
       } else {
         modelWarnings.push(`${m.home} vs ${m.away}: nedostatok odohraných zápasov tento sezónu, použil sa fallback.`);
       }
@@ -87,9 +93,10 @@ export async function getNhlDashboardData(minConfidence: number = DEFAULT_MIN_CO
 
     const matchLabel = `${m.home} vs ${m.away}`;
 
+    // --- Moneyline (2-cestny, vratane predlzenia/najazdov) ---
     if (m.odds.length >= 3) {
       const oddsForModel = m.odds.map((o) => ({ home: o.home, away: o.away }));
-      const ownHomeAway = ownProbs ? { home: ownProbs.home, away: ownProbs.away } : null;
+      const ownHomeAway = moneylineProbs ? { home: moneylineProbs.home, away: moneylineProbs.away } : null;
 
       const tips = analyzeMarketGeneric(matchLabel, oddsForModel, m.bookmakers, bank, ["home", "away"], HOME_AWAY_LABEL, ownHomeAway);
       valueTips.push(...tips);
@@ -99,8 +106,24 @@ export async function getNhlDashboardData(minConfidence: number = DEFAULT_MIN_CO
       if (conf) confidenceEntries.push({ match: matchLabel, confidence: conf });
     }
 
+    // --- Riadna hracia doba (3-cestny, s remizou) - vyssie kurzy ---
+    if (m.regulationOdds.length >= 3) {
+      const regLabel = `${matchLabel} (Riadna doba)`;
+      const oddsForModel = m.regulationOdds.map((o) => ({ home: o.home, draw: o.draw, away: o.away }));
+      const ownReg = regulationProbs ? { home: regulationProbs.home, draw: regulationProbs.draw, away: regulationProbs.away } : null;
+      const keys = ["home", "draw", "away"];
+
+      const rTips = analyzeMarketGeneric(regLabel, oddsForModel, m.regulationBookmakers, bank, keys, REGULATION_LABEL, ownReg);
+      valueTips.push(...rTips);
+
+      const { perOutcome: rPerOutcome } = perOutcomeAnalysis(ownReg, oddsForModel, m.regulationBookmakers, keys);
+      const rConf = confidencePick(rPerOutcome, minConfidence, REGULATION_LABEL);
+      if (rConf) regulationConfidenceEntries.push({ match: regLabel, confidence: rConf });
+    }
+
+    // --- Nad/Pod ---
     if (m.totalsOdds.length >= 3) {
-      const ownTotals = ownProbs ? { over: ownProbs.over, under: ownProbs.under } : null;
+      const ownTotals = moneylineProbs ? { over: moneylineProbs.over, under: moneylineProbs.under } : null;
       const tTips = analyzeMarketGeneric(`${matchLabel} (Nad/Pod)`, m.totalsOdds, m.totalsBookmakers, bank, ["over", "under"], TOTALS_LABEL, ownTotals);
       valueTips.push(...tTips);
 
@@ -110,5 +133,5 @@ export async function getNhlDashboardData(minConfidence: number = DEFAULT_MIN_CO
     }
   }
 
-  return { bank, matches, valueTips, confidenceEntries, totalsConfidenceEntries, modelWarnings, useOwnModel, statsError };
+  return { bank, matches, valueTips, confidenceEntries, regulationConfidenceEntries, totalsConfidenceEntries, modelWarnings, useOwnModel, statsError };
 }

@@ -21,7 +21,7 @@ export default async function NhlPage() {
     );
   }
 
-  const { bank, matches, valueTips, confidenceEntries, totalsConfidenceEntries, modelWarnings, useOwnModel, statsError } = data;
+  const { bank, matches, valueTips, confidenceEntries, regulationConfidenceEntries, totalsConfidenceEntries, modelWarnings, useOwnModel, statsError } = data;
 
   const openTips = await listOpenTips();
   const openKeys = new Set(openTips.map((t) => `${t.match}|${t.market}|${t.outcome}`));
@@ -117,15 +117,46 @@ export default async function NhlPage() {
           <section>
             <h2 className="text-xl font-display font-semibold">🎯 Isté tipy</h2>
             <p className="text-xs text-muted mt-1 mb-3">
-              Hľadá výsledky s najvyššou šancou na trafenie, aj keď kurz je menší. V hokeji sa
-              nedá stávkovať na remízu — vždy len domáci alebo hostia (zápas sa vždy dohráva do víťaza).
+              Hľadá výsledky s najvyššou šancou na trafenie, aj keď kurz je menší. Dva typy trhu:
+              <span className="text-text"> Moneyline</span> (víťaz vrátane predĺženia/nájazdov, len domáci
+              alebo hostia) a <span className="text-text">Riadna doba</span> (víťaz po 60 minútach, môže
+              skončiť aj remízou — preto vyššie kurzy, ale aj menšia istota).
             </p>
-            {confidenceEntries.length === 0 && totalsConfidenceEntries.length === 0 ? (
+            {confidenceEntries.length === 0 && regulationConfidenceEntries.length === 0 && totalsConfidenceEntries.length === 0 ? (
               <p className="text-sm text-muted">Žiadny zápas zatiaľ nemá dostatočne istého favorita.</p>
             ) : (
               <div className="space-y-3">
                 {confidenceEntries.map((entry, i) => (
                   <div key={i} className="card">
+                    <p className="font-medium mb-1">{entry.match}</p>
+                    {entry.confidence && (
+                      <>
+                        <p className="text-sm">
+                          <span className="font-medium">{entry.confidence.outcome}</span> @{" "}
+                          {entry.confidence.odds.toFixed(2)} ({entry.confidence.bookmaker})
+                        </p>
+                        <p className="text-xs text-muted">Šanca podľa modelu: {entry.confidence.modelProb.toFixed(0)}%</p>
+                        {isRecorded(entry.match, "istota", entry.confidence.outcome) ? (
+                          <span className="text-xs text-green">✅ Už zaznamenané</span>
+                        ) : (
+                          <ActionForm action={recordNhlTipAction} className="mt-2">
+                            <input type="hidden" name="match" value={entry.match} />
+                            <input type="hidden" name="market" value="istota" />
+                            <input type="hidden" name="outcome" value={entry.confidence.outcome} />
+                            <input type="hidden" name="bookmaker" value={entry.confidence.bookmaker} />
+                            <input type="hidden" name="odds" value={entry.confidence.odds} />
+                            <input type="hidden" name="edge" value={entry.confidence.edge} />
+                            <input type="hidden" name="predictedProb" value={entry.confidence.modelProb} />
+                            <input type="hidden" name="stake" value={Math.max(Math.round(bank * 0.02 * 100) / 100, 0.5)} />
+                            <button className="btn" type="submit">📝 Zaznamenať</button>
+                          </ActionForm>
+                        )}
+                      </>
+                    )}
+                  </div>
+                ))}
+                {regulationConfidenceEntries.map((entry, i) => (
+                  <div key={`r-${i}`} className="card">
                     <p className="font-medium mb-1">{entry.match}</p>
                     {entry.confidence && (
                       <>
@@ -180,6 +211,16 @@ export default async function NhlPage() {
                         <p className="text-muted mb-1">Moneyline:</p>
                         {m.bookmakers.map((bm, j) => (
                           <p key={j} className="font-mono">{bm}: Domáci={m.odds[j].home.toFixed(2)} Hostia={m.odds[j].away.toFixed(2)}</p>
+                        ))}
+                      </div>
+                    )}
+                    {m.regulationOdds.length > 0 && (
+                      <div>
+                        <p className="text-muted mb-1">Riadna doba (3-cestný):</p>
+                        {m.regulationBookmakers.map((bm, j) => (
+                          <p key={j} className="font-mono">
+                            {bm}: Domáci={m.regulationOdds[j].home.toFixed(2)} Remíza={m.regulationOdds[j].draw.toFixed(2)} Hostia={m.regulationOdds[j].away.toFixed(2)}
+                          </p>
                         ))}
                       </div>
                     )}

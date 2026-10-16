@@ -1,16 +1,19 @@
 import { recordApiQuota, getCachedOdds, setCachedOdds } from "./db";
 
 /**
- * Kurze pre NHL z The Odds API. Stahujeme TRI trhy naraz:
- * - h2h: moneyline (2-cestny, vratane predlzenia/najazdov) - bezny trh
- * - h2h_3_way: vitaz po RIADNEJ hracej dobe, vratane remizy (vyssie kurze)
+ * Kurze pre NHL z The Odds API. Stahujeme dva trhy naraz:
+ * - h2h: moneyline (2-cestny, vratane predlzenia/najazdov)
  * - totals: Nad/Pod
  *
- * POZOR kredity: The Odds API pocita cenu ako (trhy x regiony) - 3 trhy x 1 region
- * = 3 kredity za jedno stiahnutie NHL kurzov (oproti 2 pred pridanim h2h_3_way).
+ * Trh "h2h_3_way" (vitaz po riadnej hracej dobe) sa tu NEPOZIVA: podla
+ * dokumentacie je to "additional market", ktory hromadny endpoint /odds
+ * odmieta (chyba 422 INVALID_MARKET) - da sa pytat len po jednom zapase cez
+ * /events/{id}/odds, co stoji kredity za kazdy zapas zvlast. Polia
+ * regulationOdds/regulationBookmakers zostavaju prazdne, kod pre riadnu dobu
+ * v dashboarde sa pri prazdnych datach jednoducho preskoci.
  *
- * Rovnaka vlastna Supabase cache ako pri futbale (viz oddsClient.ts) -
- * appka NIKDY sama od seba nevola API znova, len na explicitne "Obnovit".
+ * POZOR kredity: cena = (trhy x regiony) = 2 kredity za jedno stiahnutie.
+ * Vlastna Supabase cache ako pri futbale - API sa vola len na "Obnovit".
  */
 
 const SPORT_KEY = "icehockey_nhl";
@@ -42,7 +45,7 @@ async function fetchFreshNhlOdds(apiKey: string, region: string): Promise<NhlMat
   const params = new URLSearchParams({
     apiKey,
     regions: region,
-    markets: "h2h,h2h_3_way,totals",
+    markets: "h2h,totals",
     oddsFormat: "decimal",
   });
 
@@ -116,11 +119,19 @@ async function fetchFreshNhlOdds(apiKey: string, region: string): Promise<NhlMat
   return matches;
 }
 
+function normalize(matches: NhlMatch[]): NhlMatch[] {
+  return matches.map((m) => ({
+    ...m,
+    regulationBookmakers: m.regulationBookmakers ?? [],
+    regulationOdds: m.regulationOdds ?? [],
+  }));
+}
+
 export async function fetchNhlOdds(apiKey: string, region = "us"): Promise<NhlMatch[]> {
   const cached = await getCachedOdds(CACHE_KEY);
-  // Stara cache (pred pridanim 3-way trhu) nema pole regulationOdds - ber ju ako neplatnu a stiahni nanovo.
-  if (cached && Array.isArray(cached.data) && (cached.data.length === 0 || "regulationOdds" in cached.data[0])) {
-    return cached.data as NhlMatch[];
+  if (cached && Array.isArray(cached.data)) {
+    // Starsia cache nemusi mat polia pre riadnu dobu - doplnia sa prazdne, netreba platit nove stiahnutie.
+    return normalize(cached.data as NhlMatch[]);
   }
 
   const fresh = await fetchFreshNhlOdds(apiKey, region);

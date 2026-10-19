@@ -8,7 +8,7 @@ const MAX_MATCHES = 10;
 const MIN_GAMES_PLAYED = 3; // pod tento pocet odohranych zapasov je priemer golov nespolahlivy
 const DEFAULT_MIN_CONFIDENCE = 55;
 
-const HOME_AWAY_LABEL: Record<string, string> = { home: "Domáci", away: "Hostia" };
+const HOME_AWAY_LABEL: Record<string, string> = { home: "Domáci (vrátane predĺženia)", away: "Hostia (vrátane predĺženia)" };
 const REGULATION_LABEL: Record<string, string> = { home: "Domáci (riadna doba)", draw: "Remíza (riadna doba)", away: "Hostia (riadna doba)" };
 const TOTALS_LABEL: Record<string, string> = { over: `Nad ${NHL_TOTALS_LINE} gólu`, under: `Pod ${NHL_TOTALS_LINE} gólu` };
 

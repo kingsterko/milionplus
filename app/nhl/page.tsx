@@ -117,10 +117,7 @@ export default async function NhlPage() {
           <section>
             <h2 className="text-xl font-display font-semibold">🎯 Isté tipy</h2>
             <p className="text-xs text-muted mt-1 mb-3">
-              Hľadá výsledky s najvyššou šancou na trafenie, aj keď kurz je menší. Dva typy trhu:
-              <span className="text-text"> Moneyline</span> (víťaz vrátane predĺženia/nájazdov, len domáci
-              alebo hostia) a <span className="text-text">Riadna doba</span> (víťaz po 60 minútach, môže
-              skončiť aj remízou — preto vyššie kurzy, ale aj menšia istota).
+              Hľadá výsledky s najvyššou šancou na trafenie, aj keď kurz je menší. Všetky NHL tipy sú momentálne na víťaza vrátane predĺženia a nájazdov (moneyline) — v hokeji tu nie je remíza. Trh "víťaz po riadnej hracej dobe" appka zatiaľ nepodporuje.
             </p>
             {confidenceEntries.length === 0 && regulationConfidenceEntries.length === 0 && totalsConfidenceEntries.length === 0 ? (
               <p className="text-sm text-muted">Žiadny zápas zatiaľ nemá dostatočne istého favorita.</p>
@@ -208,7 +205,7 @@ export default async function NhlPage() {
                   <div className="mt-2 space-y-2 text-xs">
                     {m.odds.length > 0 && (
                       <div>
-                        <p className="text-muted mb-1">Moneyline:</p>
+                        <p className="text-muted mb-1">Moneyline (víťaz vrátane predĺženia/nájazdov):</p>
                         {m.bookmakers.map((bm, j) => (
                           <p key={j} className="font-mono">{bm}: Domáci={m.odds[j].home.toFixed(2)} Hostia={m.odds[j].away.toFixed(2)}</p>
                         ))}

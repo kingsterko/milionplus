@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getCurrentBank, getBankrollHistory, listOpenTips, listAllTips, getPerformanceByMarket } from "@/lib/nhlDb";
 import { settleNhlTipAction, updateNhlBankAction, deleteNhlTipAction } from "@/lib/nhlActions";
 import ActionForm from "@/components/ActionForm";
+import EditNhlTipPanel from "@/components/EditNhlTipPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -111,6 +112,7 @@ export default async function NhlHistoryPage() {
                     <button className="btn" type="submit" style={{ borderColor: "#8A908866", color: "#8A9088" }}>🗑️ Zmazať</button>
                   </ActionForm>
                 </div>
+                <EditNhlTipPanel tipId={tip.id} odds={tip.odds} stake={tip.stake} />
               </div>
             ))}
           </div>

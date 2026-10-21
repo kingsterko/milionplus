@@ -1,4 +1,4 @@
-import { fetchNhlOdds, NhlMatch } from "./nhlOddsClient";
+import { fetchNhlOdds, getNhlRegulationStatus, REGULATION_MAX_EVENTS, NhlMatch } from "./nhlOddsClient";
 import { fetchNhlTeamStats, getNhlTeamStats, computeNhlLeagueAverage, NhlStatsError, NhlTeamStats } from "./nhlStatsClient";
 import { nhlExpectedGoals, buildNhlGrid, moneylineFromGrid, regulationFromGrid, NhlMatchProbabilities, NhlRegulationProbabilities, NHL_TOTALS_LINE } from "./nhlModel";
 import { analyzeMarketGeneric, perOutcomeAnalysis, confidencePick, ValueTip, ConfidencePick } from "./model";
@@ -27,6 +27,7 @@ export interface NhlDashboardData {
   modelWarnings: string[];
   useOwnModel: boolean;
   statsError: string | null;
+  regulationStatus: { enabled: boolean; note: string | null; loaded: number; maxCost: number };
 }
 
 export async function getNhlDashboardData(minConfidence: number = DEFAULT_MIN_CONFIDENCE): Promise<NhlDashboardData> {
@@ -54,6 +55,14 @@ export async function getNhlDashboardData(minConfidence: number = DEFAULT_MIN_CO
     .filter((m) => new Date(m.commenceTime).getTime() >= nowMs)
     .sort((a, b) => (a.commenceTime < b.commenceTime ? -1 : a.commenceTime > b.commenceTime ? 1 : 0))
     .slice(0, MAX_MATCHES);
+
+  const regStatus = await getNhlRegulationStatus();
+  const regulationStatus = {
+    enabled: regStatus.enabled,
+    note: regStatus.note,
+    loaded: matches.filter((m) => m.regulationOdds.length >= 3).length,
+    maxCost: 2 + REGULATION_MAX_EVENTS,
+  };
 
   let allStats: Record<string, NhlTeamStats> = {};
   let statsError: string | null = null;
@@ -133,5 +142,5 @@ export async function getNhlDashboardData(minConfidence: number = DEFAULT_MIN_CO
     }
   }
 
-  return { bank, matches, valueTips, confidenceEntries, regulationConfidenceEntries, totalsConfidenceEntries, modelWarnings, useOwnModel, statsError };
+  return { bank, matches, valueTips, confidenceEntries, regulationConfidenceEntries, totalsConfidenceEntries, modelWarnings, useOwnModel, statsError, regulationStatus };
 }

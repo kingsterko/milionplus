@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import * as nhlDb from "./nhlDb";
 import { clearCachedOdds } from "./db";
+import { refreshNhlRegulation } from "./nhlOddsClient";
 
 /**
  * Rovnaky princip ako lib/actions.ts - akcie upravujuce len Supabase data
@@ -63,4 +64,12 @@ export async function updateNhlBankAction(formData: FormData) {
 export async function refreshNhlAction() {
   await clearCachedOdds("nhl:icehockey_nhl");
   revalidatePath("/nhl");
+}
+
+// Tlacidlo "Obnovit riadnu dobu": stiahne LEN trh h2h_3_way (po jednom zapase, najviac 10 kreditov).
+// Moneyline ani Nad/Pod sa tu neobnovuju.
+export async function refreshNhlRegulationAction() {
+  const apiKey = process.env.ODDS_API_KEY;
+  if (!apiKey) return;
+  await refreshNhlRegulation(apiKey);
 }

@@ -27,7 +27,7 @@ export interface NhlDashboardData {
   modelWarnings: string[];
   useOwnModel: boolean;
   statsError: string | null;
-  regulationStatus: { enabled: boolean; note: string | null; loaded: number; maxCost: number };
+  regulationStatus: { enabled: boolean; note: string | null; loaded: number; maxCost: number; fetchedAt: string | null };
 }
 
 export async function getNhlDashboardData(minConfidence: number = DEFAULT_MIN_CONFIDENCE): Promise<NhlDashboardData> {
@@ -61,7 +61,8 @@ export async function getNhlDashboardData(minConfidence: number = DEFAULT_MIN_CO
     enabled: regStatus.enabled,
     note: regStatus.note,
     loaded: matches.filter((m) => m.regulationOdds.length >= 3).length,
-    maxCost: 2 + REGULATION_MAX_EVENTS,
+    maxCost: REGULATION_MAX_EVENTS,
+    fetchedAt: regStatus.fetchedAt,
   };
 
   let allStats: Record<string, NhlTeamStats> = {};

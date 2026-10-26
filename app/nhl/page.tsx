@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { getNhlDashboardData } from "@/lib/nhlDashboard";
-import { recordNhlTipAction, refreshNhlAction } from "@/lib/nhlActions";
+import { recordNhlTipAction, refreshNhlAction, refreshNhlRegulationAction } from "@/lib/nhlActions";
 import { isDuplicateOpenTip, listOpenTips } from "@/lib/nhlDb";
 import ActionForm from "@/components/ActionForm";
+import NhlRefreshButton from "@/components/NhlRefreshButton";
 
 export const dynamic = "force-dynamic";
+// Obnovenie riadnej doby vola API po jednom zapase (az 10 volani za sebou), preto dlhsi limit.
+export const maxDuration = 60;
 
 export default async function NhlPage() {
   let data;
@@ -38,27 +41,40 @@ export default async function NhlPage() {
         <p className="text-xs text-muted">
           🏒 NHL · {matches.length} zápasov · bank €{bank.toFixed(2)}
         </p>
-        <ActionForm action={refreshNhlAction}>
-          <button className="btn-primary" type="submit">🔄 Obnoviť</button>
-        </ActionForm>
+        <NhlRefreshButton
+          action={refreshNhlAction}
+          label="🔄 Obnoviť moneyline · 2 kr."
+          busyLabel="Obnovujem…"
+          title="Stiahne moneyline a Nad/Pod (2 kredity). Kurzy riadnej doby sa neobnovujú."
+        />
       </div>
 
       {regulationStatus.enabled ? (
-        regulationStatus.loaded > 0 ? (
-          <div>
+        <div className="card">
+          <div className="flex items-center justify-between gap-3">
             <p className="text-xs text-muted">
-              Riadna doba: použiteľné kurzy pre {regulationStatus.loaded} z {matches.length} zápasov.
+              Riadna doba:{" "}
+              {regulationStatus.loaded > 0
+                ? `použiteľné kurzy pre ${regulationStatus.loaded} z ${matches.length} zápasov`
+                : "zatiaľ nenačítané"}
+              {regulationStatus.fetchedAt ? ` · načítané ${regulationStatus.fetchedAt.slice(0, 16).replace("T", " ")} UTC` : ""}
             </p>
-            {regulationStatus.note && <p className="text-xs text-amber mt-1">{regulationStatus.note}</p>}
+            <NhlRefreshButton
+              action={refreshNhlRegulationAction}
+              label={`🔄 Obnoviť riadnu dobu · až ${regulationStatus.maxCost} kr.`}
+              busyLabel="Načítavam…"
+              className="btn shrink-0"
+              title="Stiahne len kurzy riadnej doby (1 kredit za zápas s dátami). Moneyline sa neobnovuje."
+            />
           </div>
-        ) : (
-          <div className="card">
-            <p className="text-sm text-amber">
-              {regulationStatus.note ??
-                `Kurzy riadnej doby zatiaľ nie sú načítané — klikni Obnoviť (stojí najviac ${regulationStatus.maxCost} kreditov: 2 za základné kurzy a 1 za každý zápas, pre ktorý bookmakeri trh ponúkajú).`}
+          {regulationStatus.note && <p className="text-xs text-amber mt-2">{regulationStatus.note}</p>}
+          {regulationStatus.loaded === 0 && !regulationStatus.note && (
+            <p className="text-xs text-muted mt-2">
+              Klikni na tlačidlo — stojí najviac {regulationStatus.maxCost} kreditov (1 za každý zápas, pre ktorý bookmakeri
+              trh ponúkajú; prázdne odpovede sa podľa dokumentácie neúčtujú).
             </p>
-          </div>
-        )
+          )}
+        </div>
       ) : (
         <p className="text-xs text-muted">Trh „riadna doba“ je vypnutý (NHL_REGULATION_MARKET=off).</p>
       )}
@@ -137,7 +153,7 @@ export default async function NhlPage() {
           <section>
             <h2 className="text-xl font-display font-semibold">🎯 Isté tipy</h2>
             <p className="text-xs text-muted mt-1 mb-3">
-              Hľadá výsledky s najvyššou šancou na trafenie, aj keď kurz je menší. Moneyline = víťaz vrátane predĺženia a nájazdov (len domáci alebo hostia). Riadna doba = víťaz po 60 minútach, zápas môže skončiť aj remízou — preto vyššie kurzy, ale menšia istota. Kurzy riadnej doby sa sťahujú len po kliknutí na Obnoviť a stoja kredity navyše.
+              Hľadá výsledky s najvyššou šancou na trafenie, aj keď kurz je menší. Moneyline = víťaz vrátane predĺženia a nájazdov (len domáci alebo hostia). Riadna doba = víťaz po 60 minútach, zápas môže skončiť aj remízou — preto vyššie kurzy, ale menšia istota. Kurzy riadnej doby sa sťahujú osobitne, len po kliknutí na „Obnoviť riadnu dobu“, a stoja kredity navyše.
             </p>
             {confidenceEntries.length === 0 && regulationConfidenceEntries.length === 0 && totalsConfidenceEntries.length === 0 ? (
               <p className="text-sm text-muted">Žiadny zápas zatiaľ nemá dostatočne istého favorita.</p>

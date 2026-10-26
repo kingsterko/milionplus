@@ -1,29 +1,30 @@
 import { recordApiQuota, getCachedOdds, setCachedOdds } from "./db";
 
 /**
- * Kurze pre NHL z The Odds API.
+ * Kurze pre NHL z The Odds API - dve NEZAVISLE casti, kazda s vlastnou cache
+ * a vlastnym tlacidlom "Obnovit":
  *
- * Hromadny request /odds (2 trhy: h2h + totals = 2 kredity):
- * - h2h: moneyline (2-cestny, vratane predlzenia/najazdov)
- * - totals: Nad/Pod
+ * 1) Moneyline + Nad/Pod (hromadny /odds, markets=h2h,totals = 2 kredity).
+ *    Cache "nhl:icehockey_nhl". Stiahne sa pri prazdnej cache alebo po
+ *    kliknuti na "Obnovit moneyline".
  *
- * Trh "h2h_3_way" (vitaz po RIADNEJ hracej dobe, vratane remizy) je podla
- * dokumentacie "additional market" - hromadny /odds ho odmieta (422
- * INVALID_MARKET). Da sa pytat len po jednom zapase cez
- * /events/{id}/odds. Cena: 1 kredit za trh a region, odpovede BEZ dat sa
- * neuctuju. Preto sa to robi len pri skutocnom stahovani (prazdna cache
- * alebo klik na "Obnovit"), len pre najblizsich REGULATION_MAX_EVENTS zapasov,
- * a prva chyba zastavi vsetky dalsie volania. Vypnutie: premenna prostredia
- * NHL_REGULATION_MARKET=off (Vercel -> Settings -> Environment Variables).
+ * 2) Riadna doba (trh "h2h_3_way"). Je to "additional market" - hromadny
+ *    /odds ho odmieta (422 INVALID_MARKET), da sa pytat len po jednom zapase
+ *    cez /events/{id}/odds. Cena: 1 kredit za zapas s datami, odpovede BEZ
+ *    dat sa neuctuju. Cache "nhl:regulation". Stiahne sa VYHRADNE po
+ *    kliknuti na "Obnovit riadnu dobu" - nikdy pri nacitani stranky ani pri
+ *    obnoveni moneyline. Najviac REGULATION_MAX_EVENTS kreditov, prva chyba
+ *    zastavi dalsie volania. Vypnutie: NHL_REGULATION_MARKET=off.
  *
- * Najvyssia cena jedneho obnovenia: 2 + REGULATION_MAX_EVENTS kreditov.
+ * Kurzy riadnej doby sa k zapasom pripajaju pri citani podla ID zapasu, takze
+ * prezivaju aj obnovenie moneylinu.
  */
 
 const SPORT_KEY = "icehockey_nhl";
 const SPORT_BASE = `https://api.the-odds-api.com/v4/sports/${SPORT_KEY}`;
 const TOTALS_LINE = 6.5; // bezna hranica pre NHL (na rozdiel od futbalovych 2.5)
 const CACHE_KEY = "nhl:icehockey_nhl";
-const STATUS_KEY = "nhl:regulation_status";
+const REG_KEY = "nhl:regulation";
 export const REGULATION_MAX_EVENTS = 10;
 const REGULATION_DELAY_MS = 250;
 
@@ -50,6 +51,11 @@ export interface NhlMatch {
   regulationOdds: { home: number; draw: number; away: number }[];
   totalsBookmakers: string[];
   totalsOdds: { over: number; under: number }[];
+}
+
+interface RegulationEntry {
+  bookmakers: string[];
+  odds: { home: number; draw: number; away: number }[];
 }
 
 async function fetchFreshNhlOdds(apiKey: string, region: string): Promise<NhlMatch[]> {
@@ -120,11 +126,7 @@ async function fetchFreshNhlOdds(apiKey: string, region: string): Promise<NhlMat
 }
 
 /** Vytiahne kurzy 3-cestneho trhu z odpovede /events/{id}/odds. Remiza = vysledok pomenovany "Draw"/"Tie". */
-export function parseRegulationEvent(
-  ev: any,
-  home: string,
-  away: string
-): { bookmakers: string[]; odds: { home: number; draw: number; away: number }[] } {
+export function parseRegulationEvent(ev: any, home: string, away: string): RegulationEntry {
   const bookmakers: string[] = [];
   const odds: { home: number; draw: number; away: number }[] = [];
 
@@ -147,9 +149,7 @@ export function parseRegulationEvent(
   return { bookmakers, odds };
 }
 
-type RegulationResult =
-  | { ok: true; bookmakers: string[]; odds: { home: number; draw: number; away: number }[] }
-  | { ok: false; error: string };
+type RegulationResult = ({ ok: true } & RegulationEntry) | { ok: false; error: string };
 
 async function fetchRegulationForEvent(apiKey: string, m: NhlMatch, region: string): Promise<RegulationResult> {
   const params = new URLSearchParams({
@@ -175,10 +175,16 @@ async function fetchRegulationForEvent(apiKey: string, m: NhlMatch, region: stri
 
 /**
  * Doplni kurzy riadnej doby k najblizsim zapasom. Vrati poznamku pre UI
- * (null = vsetko prebehlo bez problemu). Prva chyba zastavi dalsie volania.
+ * (null = bez problemu) a zoznam ID zapasov, na ktore sa API realne pytalo
+ * (aby sa dalo rozlisit "prazdna odpoved" od "nedosiahnute"). Prva chyba
+ * zastavi dalsie volania.
  */
-export async function enrichWithRegulation(apiKey: string, matches: NhlMatch[], region: string): Promise<string | null> {
-  if (!isRegulationEnabled()) return null;
+export async function enrichWithRegulation(
+  apiKey: string,
+  matches: NhlMatch[],
+  region: string
+): Promise<{ note: string | null; queried: string[] }> {
+  if (!isRegulationEnabled()) return { note: null, queried: [] };
 
   const nowMs = Date.now();
   const targets = matches
@@ -186,6 +192,7 @@ export async function enrichWithRegulation(apiKey: string, matches: NhlMatch[], 
     .sort((a, b) => (a.commenceTime < b.commenceTime ? -1 : a.commenceTime > b.commenceTime ? 1 : 0))
     .slice(0, REGULATION_MAX_EVENTS);
 
+  const queried: string[] = [];
   let note: string | null = null;
   for (let i = 0; i < targets.length; i++) {
     if (i > 0) await new Promise((r) => setTimeout(r, REGULATION_DELAY_MS));
@@ -196,12 +203,13 @@ export async function enrichWithRegulation(apiKey: string, matches: NhlMatch[], 
     }
     targets[i].regulationBookmakers = r.bookmakers;
     targets[i].regulationOdds = r.odds;
+    queried.push(targets[i].id as string);
   }
 
   if (!note && targets.length > 0 && !targets.some((m) => m.regulationOdds.length > 0)) {
     note = "Bookmakeri pre NHL trh „riadna doba“ momentálne žiadne kurzy neponúkajú (alebo ich API pre túto súťaž nevracia).";
   }
-  return note;
+  return { note, queried };
 }
 
 function normalize(matches: NhlMatch[]): NhlMatch[] {
@@ -212,22 +220,69 @@ function normalize(matches: NhlMatch[]): NhlMatch[] {
   }));
 }
 
+/** Moneyline + Nad/Pod z vlastnej cache (stiahne len ak je prazdna) + kurzy riadnej doby z ich vlastnej cache. */
 export async function fetchNhlOdds(apiKey: string, region = "us"): Promise<NhlMatch[]> {
   const cached = await getCachedOdds(CACHE_KEY);
+  let matches: NhlMatch[];
   if (cached && Array.isArray(cached.data)) {
-    // Starsia cache nemusi mat riadnu dobu - doplni sa prazdna, nova platba sa NEspusti sama (len cez "Obnovit").
-    return normalize(cached.data as NhlMatch[]);
+    matches = normalize(cached.data as NhlMatch[]);
+  } else {
+    matches = await fetchFreshNhlOdds(apiKey, region);
+    await setCachedOdds(CACHE_KEY, matches);
   }
 
-  const fresh = await fetchFreshNhlOdds(apiKey, region);
-  const note = await enrichWithRegulation(apiKey, fresh, region);
-  await setCachedOdds(CACHE_KEY, fresh);
-  await setCachedOdds(STATUS_KEY, { note });
-  return fresh;
+  const reg = await getCachedOdds(REG_KEY);
+  const byEventId: Record<string, RegulationEntry> = (reg && reg.data && reg.data.byEventId) || {};
+  return matches.map((m) =>
+    m.id && byEventId[m.id]
+      ? { ...m, regulationBookmakers: byEventId[m.id].bookmakers, regulationOdds: byEventId[m.id].odds }
+      : m
+  );
 }
 
-export async function getNhlRegulationStatus(): Promise<{ enabled: boolean; note: string | null }> {
-  const cached = await getCachedOdds(STATUS_KEY);
-  const note = cached && cached.data && typeof cached.data.note === "string" ? cached.data.note : null;
-  return { enabled: isRegulationEnabled(), note };
+/** Tlacidlo "Obnovit riadnu dobu": jedine miesto, kde sa trh h2h_3_way sťahuje. Moneyline sa tu NEOBNOVUJE. */
+export async function refreshNhlRegulation(apiKey: string, region = "us"): Promise<void> {
+  if (!isRegulationEnabled()) return;
+
+  const prevCached = await getCachedOdds(REG_KEY);
+  const prev: Record<string, RegulationEntry> = (prevCached && prevCached.data && prevCached.data.byEventId) || {};
+  const prevFetchedAt: string | null = (prevCached && prevCached.data && prevCached.data.fetchedAt) || null;
+
+  const keepPrevWithNote = async (note: string) =>
+    setCachedOdds(REG_KEY, { byEventId: prev, note, fetchedAt: prevFetchedAt });
+
+  const base = await getCachedOdds(CACHE_KEY);
+  if (!base || !Array.isArray(base.data) || base.data.length === 0) {
+    await keepPrevWithNote("Najprv načítaj základné kurzy (tlačidlo Obnoviť moneyline) — bez nich nepoznáme zápasy.");
+    return;
+  }
+  const matches = normalize(base.data as NhlMatch[]);
+  if (!matches.some((m) => m.id)) {
+    await keepPrevWithNote("Uložené základné kurzy sú zo staršej verzie bez ID zápasov — klikni najprv Obnoviť moneyline.");
+    return;
+  }
+
+  const { note, queried } = await enrichWithRegulation(apiKey, matches, region);
+  const queriedSet = new Set(queried);
+
+  const byEventId: Record<string, RegulationEntry> = {};
+  for (const m of matches) {
+    if (!m.id) continue;
+    if (queriedSet.has(m.id)) {
+      if (m.regulationOdds.length > 0) byEventId[m.id] = { bookmakers: m.regulationBookmakers, odds: m.regulationOdds };
+    } else if (prev[m.id]) {
+      byEventId[m.id] = prev[m.id]; // nedosiahnute (chyba/limit) - ponechaj predchadzajuce kurzy
+    }
+  }
+  await setCachedOdds(REG_KEY, { byEventId, note, fetchedAt: new Date().toISOString() });
+}
+
+export async function getNhlRegulationStatus(): Promise<{ enabled: boolean; note: string | null; fetchedAt: string | null }> {
+  const cached = await getCachedOdds(REG_KEY);
+  const d = cached && cached.data ? cached.data : null;
+  return {
+    enabled: isRegulationEnabled(),
+    note: d && typeof d.note === "string" ? d.note : null,
+    fetchedAt: d && typeof d.fetchedAt === "string" ? d.fetchedAt : null,
+  };
 }

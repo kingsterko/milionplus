@@ -118,11 +118,13 @@ export async function settleTip(tipId: number, won: boolean): Promise<void> {
   const supabase = getSupabase();
   const { data: tip, error: fetchErr } = await supabase.from("nhl_tips").select("*").eq("id", tipId).single();
   if (fetchErr) throw fetchErr;
-  if (!tip) return;
+  // Uz vysporiadany tip (dvojklik, druhy tab) - bank sa NESMIE upravit znova.
+  if (!tip || tip.status !== "open") return;
 
   const profit = won ? Math.round(tip.stake * (tip.odds - 1) * 100) / 100 : -tip.stake;
 
-  const { error: updateErr } = await supabase
+  // Podmienena zmena: uspeje len ak je tip STALE otvoreny. Ak ho medzitym vysporiadal iny request, nezmeni sa nic.
+  const { data: updated, error: updateErr } = await supabase
     .from("nhl_tips")
     .update({
       status: "settled",
@@ -130,8 +132,11 @@ export async function settleTip(tipId: number, won: boolean): Promise<void> {
       profit,
       settled_at: new Date().toISOString(),
     })
-    .eq("id", tipId);
+    .eq("id", tipId)
+    .eq("status", "open")
+    .select("id");
   if (updateErr) throw updateErr;
+  if (!updated || updated.length === 0) return;
 
   const currentBank = await getCurrentBank();
   const newBank = Math.round((currentBank + profit) * 100) / 100;

@@ -76,3 +76,25 @@ Celý postup nižšie sa dá spraviť **len cez prehliadač**, bez inštalácie
 - Minimálna istota pre "favorit" tip je pevná (55%), zatiaľ bez posuvníka.
 
 Obe sa dajú doplniť ako ďalší krok, ak sa appka osvedčí.
+
+---
+
+## Databáza, premenné prostredia a kredity (aktuálny stav)
+
+**Nová inštalácia:** v Supabase SQL Editore spusti celý `supabase/schema.sql` – obsahuje všetky tabuľky
+(futbal, NHL, sledovanie kreditov, cache kurzov).
+
+**Existujúca databáza:** spusti len migrácie, ktoré ešte nemáš (každá je bezpečná aj opakovane):
+`migration_predicted_prob.sql`, `migration_api_quota.sql`, `migration_nhl.sql`, `migration_cached_odds.sql`.
+
+| Premenná | Povinná | Význam |
+|---|---|---|
+| `ODDS_API_KEY` | áno | The Odds API (zdieľaný limit pre futbal aj NHL) |
+| `FOOTBALL_DATA_API_KEY` | áno | štatistiky tímov pre futbalový model |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | áno | databáza |
+| `NHL_REGULATION_MARKET` | nie | `off` vypne sťahovanie kurzov „riadna doba“ v NHL |
+
+**Ako sa míňajú kredity:** kurzy sa sťahujú len keď je cache prázdna alebo po kliknutí na „Obnoviť“.
+Futbal: 2 kredity za ligu. NHL: moneyline + Nad/Pod 2 kredity, riadna doba (osobitné tlačidlo) najviac 10.
+Štatistiky z football-data.org a NHL sa ukladajú do Supabase (6 hodín), kredity nestoja.
+Pri chybe čítania cache appka kurzy nesťahuje a zobrazí chybu – radšej než potichu minúť kredity.

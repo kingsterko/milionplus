@@ -44,3 +44,13 @@ export function dayKey(iso: string): string {
   const date = new Date(iso);
   return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 }
+
+/** "pred 5 min" / "pred 3 h" / "pred 2 d" - ako stare su ulozene kurzy (obnovuju sa len rucne). */
+export function formatAge(iso: string): string {
+  const minutes = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
+  if (minutes < 1) return "práve teraz";
+  if (minutes < 60) return `pred ${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) return `pred ${hours} h`;
+  return `pred ${Math.floor(hours / 24)} d`;
+}

@@ -30,6 +30,7 @@ async function trackQuota(resp: Response): Promise<void> {
 }
 
 export interface OddsMatch {
+  fetchedAt?: string;
   home: string;
   away: string;
   commenceTime: string;
@@ -99,12 +100,13 @@ export async function fetchLeagueOdds(apiKey: string, sportKey: string, region =
   const cacheKey = `soccer:${sportKey}`;
   const cached = await getCachedOdds(cacheKey);
   if (cached) {
-    return cached.data as OddsMatch[];
+    return (cached.data as OddsMatch[]).map((m) => ({ ...m, fetchedAt: cached.fetchedAt }));
   }
 
   const fresh = await fetchFreshLeagueOdds(apiKey, sportKey, region);
   await setCachedOdds(cacheKey, fresh);
-  return fresh;
+  const now = new Date().toISOString();
+  return fresh.map((m) => ({ ...m, fetchedAt: now }));
 }
 
 export interface LiveScore {

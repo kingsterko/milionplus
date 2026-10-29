@@ -42,6 +42,7 @@ async function trackQuota(resp: Response): Promise<void> {
 
 export interface NhlMatch {
   id?: string;
+  fetchedAt?: string;
   home: string;
   away: string;
   commenceTime: string;
@@ -230,6 +231,9 @@ export async function fetchNhlOdds(apiKey: string, region = "us"): Promise<NhlMa
     matches = await fetchFreshNhlOdds(apiKey, region);
     await setCachedOdds(CACHE_KEY, matches);
   }
+
+  const stampedAt = cached && Array.isArray(cached.data) ? cached.fetchedAt : new Date().toISOString();
+  matches = matches.map((m) => ({ ...m, fetchedAt: stampedAt }));
 
   const reg = await getCachedOdds(REG_KEY);
   const byEventId: Record<string, RegulationEntry> = (reg && reg.data && reg.data.byEventId) || {};

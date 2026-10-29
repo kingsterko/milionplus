@@ -137,6 +137,9 @@ async function fetchAndAnalyzeLeague(
   bank: number,
   minConfidence: number
 ): Promise<LeagueAnalysis> {
+  // Model (cache statistik) a kurzy su nezavisle - nacitaju sa naraz, nie postupne.
+  const modelBasePromise = getLeagueModelBase(league, footballApiKey);
+
   let matches: OddsMatch[];
   try {
     matches = await fetchLeagueOdds(oddsApiKey, league.oddsSportKey);
@@ -153,7 +156,7 @@ async function fetchAndAnalyzeLeague(
   const kickoffByMatch: Record<string, string> = {};
   for (const m of matches) kickoffByMatch[`${m.home} vs ${m.away}`] = m.commenceTime;
 
-  const { matchIndex, leagueAvg, useOwnModel, modelError } = await getLeagueModelBase(league, footballApiKey);
+  const { matchIndex, leagueAvg, useOwnModel, modelError } = await modelBasePromise;
 
   const valueTips: ValueTip[] = [];
   const confidenceEntries: ConfidenceEntry[] = [];

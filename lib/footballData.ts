@@ -5,6 +5,7 @@
  */
 
 import type { TeamVenueStats } from "./poisson";
+import { cachedJson } from "./cache";
 
 const BASE_URL = "https://api.football-data.org/v4";
 
@@ -207,9 +208,9 @@ function matchTeam(target: string, available: string[]): string | null {
   return null;
 }
 
-export async function fetchSeasonMatches(apiKey: string, season: number, competitionCode: string): Promise<RawMatch[]> {
+async function loadSeasonMatches(apiKey: string, season: number, competitionCode: string): Promise<RawMatch[]> {
   const url = `${BASE_URL}/competitions/${competitionCode}/matches?season=${season}&status=FINISHED`;
-  const resp = await fetch(url, { headers: { "X-Auth-Token": apiKey }, next: { revalidate: 6 * 3600 } });
+  const resp = await fetch(url, { headers: { "X-Auth-Token": apiKey }, cache: "no-store" });
 
   if (resp.status === 401 || resp.status === 403) {
     throw new FootballDataError(`Neplatný kľúč (status ${resp.status}).`);
@@ -236,6 +237,24 @@ export async function fetchSeasonMatches(apiKey: string, season: number, competi
     });
   }
   return out;
+}
+
+function currentSeasonStartYear(): number {
+  const d = new Date();
+  return d.getUTCMonth() + 1 >= 7 ? d.getUTCFullYear() : d.getUTCFullYear() - 1;
+}
+
+/**
+ * Zapasy sezony z vlastnej Supabase cache. Aktualna sezona: cerstve 6 hodin.
+ * Dokoncena sezona: staci stiahnut raz, ale az PO jej skonceni (1. jul nasledujuceho roka),
+ * aby sa neprilepil nekompletny stav stiahnuty tesne pred poslednym kolom.
+ */
+export async function fetchSeasonMatches(apiKey: string, season: number, competitionCode: string): Promise<RawMatch[]> {
+  const isPast = season < currentSeasonStartYear();
+  const isFresh = isPast
+    ? (t: Date) => t.getTime() >= Date.UTC(season + 1, 6, 1)
+    : (t: Date) => Date.now() - t.getTime() < 6 * 3600 * 1000;
+  return cachedJson(`fd:${competitionCode}:${season}`, isFresh, () => loadSeasonMatches(apiKey, season, competitionCode));
 }
 
 export function buildMatchIndex(matches: RawMatch[]): MatchIndex {

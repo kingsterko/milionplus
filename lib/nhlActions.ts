@@ -22,6 +22,7 @@ export async function recordNhlTipAction(formData: FormData) {
   const predictedProb = parseFloat(String(formData.get("predictedProb")));
   const stake = parseFloat(String(formData.get("stake")));
 
+  if (await nhlDb.isDuplicateOpenTip(match, market, outcome)) return;
   await nhlDb.logTip(match, market, outcome, bookmaker, odds, edge, predictedProb, stake);
   revalidatePath("/nhl/history");
 }

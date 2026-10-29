@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getDashboardData, getMixTicketData, getTodayDashboardData } from "@/lib/dashboard";
 import { recordTipAction, refreshAction } from "@/lib/actions";
 import { LEAGUES, DEFAULT_LEAGUE_ID, getLeague } from "@/lib/leagues";
-import { formatKickoff, formatDayHeading, dayKey, isToday } from "@/lib/format";
+import { formatKickoff, formatDayHeading, dayKey, isToday, formatAge } from "@/lib/format";
 import { listOpenTips } from "@/lib/db";
 import { buildSafestTicket, LEG_OPTIONS } from "@/lib/ticket";
 import TicketTabs from "@/components/TicketTabs";
@@ -365,6 +365,7 @@ export default async function MatchesPage({
       <div className="flex items-center justify-between">
         <p className="text-xs text-muted">
           {league.label} · najbližších {matches.length} zápasov · bank €{bank.toFixed(2)}
+          {matches[0]?.fetchedAt ? ` · kurzy ${formatAge(matches[0].fetchedAt)}` : ""}
         </p>
         <form action={refreshAction}>
           <button className="btn-primary" type="submit">

@@ -32,6 +32,8 @@ export async function recordTipAction(formData: FormData) {
   const predictedProb = parseFloat(String(formData.get("predictedProb")));
   const stake = parseFloat(String(formData.get("stake")));
 
+  // Ochrana pred dvojklikom: rovnaky otvoreny tip sa nezaznamena druhy raz.
+  if (await db.isDuplicateOpenTip(match, market, outcome)) return;
   await db.logTip(match, market, outcome, bookmaker, odds, edge, predictedProb, stake);
   revalidatePath("/history");
 }

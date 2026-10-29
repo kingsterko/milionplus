@@ -3,6 +3,7 @@ import { getNhlDashboardData } from "@/lib/nhlDashboard";
 import { recordNhlTipAction, refreshNhlAction, refreshNhlRegulationAction } from "@/lib/nhlActions";
 import { isDuplicateOpenTip, listOpenTips } from "@/lib/nhlDb";
 import ActionForm from "@/components/ActionForm";
+import { formatAge } from "@/lib/format";
 import NhlRefreshButton from "@/components/NhlRefreshButton";
 
 export const dynamic = "force-dynamic";
@@ -40,6 +41,7 @@ export default async function NhlPage() {
       <div className="flex items-center justify-between">
         <p className="text-xs text-muted">
           🏒 NHL · {matches.length} zápasov · bank €{bank.toFixed(2)}
+          {matches[0]?.fetchedAt ? ` · kurzy ${formatAge(matches[0].fetchedAt)}` : ""}
         </p>
         <NhlRefreshButton
           action={refreshNhlAction}

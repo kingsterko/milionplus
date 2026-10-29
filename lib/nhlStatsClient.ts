@@ -10,6 +10,8 @@
  * Vyhoda: JEDNO volanie stiahne udaje o VSETKYCH timoch naraz.
  */
 
+import { cachedJson } from "./cache";
+
 const STANDINGS_URL = "https://api-web.nhle.com/v1/standings/now";
 
 export interface NhlTeamStats {
@@ -36,8 +38,8 @@ function matchTeam(target: string, available: string[]): string | null {
   return null;
 }
 
-export async function fetchNhlTeamStats(): Promise<Record<string, NhlTeamStats>> {
-  const resp = await fetch(STANDINGS_URL, { next: { revalidate: 6 * 3600, tags: ["nhl_stats"] } });
+async function loadNhlTeamStats(): Promise<Record<string, NhlTeamStats>> {
+  const resp = await fetch(STANDINGS_URL, { cache: "no-store" });
   if (!resp.ok) {
     const text = await resp.text();
     throw new NhlStatsError(`NHL standings chyba (status ${resp.status}): ${text.slice(0, 200)}`);
@@ -56,6 +58,11 @@ export async function fetchNhlTeamStats(): Promise<Record<string, NhlTeamStats>>
     };
   }
   return stats;
+}
+
+/** Tabulka NHL z vlastnej Supabase cache (cerstva 6 hodin, pri vypadku zdroja sa pouzije starsia). */
+export async function fetchNhlTeamStats(): Promise<Record<string, NhlTeamStats>> {
+  return cachedJson("nhlstats:standings", (t) => Date.now() - t.getTime() < 6 * 3600 * 1000, loadNhlTeamStats);
 }
 
 export function getNhlTeamStats(allStats: Record<string, NhlTeamStats>, teamName: string): NhlTeamStats | null {

@@ -22,6 +22,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   return (
     <html lang="sk">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600&display=swap" />
+      </head>
       <body className="font-sans">
         <div className="max-w-2xl mx-auto px-4 pt-8 pb-4">
           <div className="flex items-baseline justify-between">

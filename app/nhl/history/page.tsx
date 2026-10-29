@@ -7,12 +7,14 @@ import EditNhlTipPanel from "@/components/EditNhlTipPanel";
 export const dynamic = "force-dynamic";
 
 export default async function NhlHistoryPage() {
-  const bank = await getCurrentBank();
-  const bankHistory = await getBankrollHistory();
-  const openTips = await listOpenTips();
-  const allTips = await listAllTips();
+  const [bank, bankHistory, openTips, allTips, performance] = await Promise.all([
+    getCurrentBank(),
+    getBankrollHistory(),
+    listOpenTips(),
+    listAllTips(),
+    getPerformanceByMarket(),
+  ]);
   const settled = allTips.filter((t) => t.status === "settled");
-  const performance = await getPerformanceByMarket();
 
   const maxBank = Math.max(...bankHistory.map((b) => b.bank), bank, 1);
   const minBank = Math.min(...bankHistory.map((b) => b.bank), bank, 0);
